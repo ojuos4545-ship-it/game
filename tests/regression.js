@@ -17,6 +17,7 @@ const { chromium } = require('playwright');
 // 기본값: 이 폴더 옆의 index.html을 파일로 직접 연다(서버 불필요). 다른 주소로 검사하려면 LH_URL 환경변수를 준다.
 const URL = process.env.LH_URL || require('url').pathToFileURL(require('path').join(__dirname, '..', 'index.html')).href;
 const SHOT_DIR = require('os').tmpdir();
+const SPECIES_NAME_MOSSBEAR = '끼고미'; // 종족 이름은 임시다. 이름을 바꾸면 여기도 함께 바꾼다.
 const results = [];
 function check(name, ok, detail='') { results.push({ name, ok: !!ok, detail }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  → ' + detail : '')); }
 const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow = Date.now.bind(Date); window.__off = ${off}; Date.now = () => window.__realNow() + window.__off; })();`;
@@ -170,13 +171,30 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.evaluate(() => { game.resources.wood = 130; game.resources.stone = 70; });
   await page.waitForTimeout(1300);   // 다시 그리지 않아도 매초 갱신으로 버튼이 켜지는지
   check('5-3 조건을 채우면 달성도 갱신 + 버튼 활성(매초 갱신)', !(await page.isDisabled(unlockSel)) && (await page.textContent('[data-region-req="forest"]')).includes('✅ 마을 단계 3/3'), await page.textContent('[data-region-req="forest"]'));
+  const giftBefore = await page.evaluate(() => ({ pets: game.pets.length, text: document.querySelector('[data-region="forest"]').textContent }));
   await page.click(unlockSel);
+  const gift = await page.evaluate(() => ({ pets: game.pets.length, last: game.pets[game.pets.length - 1].speciesId, name: game.pets[game.pets.length - 1].name, dex: game.discoveredSpecies.includes('mossbear'), given: game.regionGiftsGiven.slice(), msg: game.message }));
+  check('5-3 개방 전 카드에 선물 안내 표시', giftBefore.text.includes('개방하면 이 지역의 펫 1마리가 합류해요'));
+  check('5-3 개방 선물: 끼고미 1마리 합류 + 도감 등록', gift.pets === giftBefore.pets + 1 && gift.last === 'mossbear' && gift.name === SPECIES_NAME_MOSSBEAR && gift.dex && JSON.stringify(gift.given) === '["forest"]' && gift.msg.includes(SPECIES_NAME_MOSSBEAR), JSON.stringify(gift));
+  check('5-3 선물은 한 번만 지급', await page.evaluate(() => { const n = game.pets.length; const again = grantPendingRegionGifts(); return !again && game.pets.length === n; }));
   const reg1 = await page.evaluate(() => ({ regions: game.unlockedRegions.slice(), wood: game.resources.wood, stone: game.resources.stone, text: document.querySelector('[data-region="forest"]').textContent, button: !!document.querySelector('[data-unlock-region]'), saved: JSON.parse(localStorage.getItem(CONFIG.saveKey)).unlockedRegions }));
   check('5-3 개방 → 목재 -100, 돌 -60, 즉시 저장', JSON.stringify(reg1.regions) === '["meadow","forest"]' && reg1.wood === 30 && reg1.stone === 10 && reg1.saved.includes('forest'), JSON.stringify(reg1));
   check('5-3 개방 후 "개방됨" 표시, 버튼 사라짐', reg1.text.includes('🌲 숲') && reg1.text.includes('개방됨') && !reg1.button, reg1.text);
   check('5-3 이미 개방한 지역은 다시 호출해도 자원이 줄지 않음', await page.evaluate(() => { game.resources.wood = 200; game.resources.stone = 200; unlockRegion('forest'); return game.resources.wood === 200 && game.unlockedRegions.length === 2; }));
   check('5-3 저장 데이터의 잘못된 지역 목록 보정(없는 지역 제거·중복 제거·초원 유지)', await page.evaluate(() => { const copy = JSON.parse(JSON.stringify(game)); copy.unlockedRegions = ['ghost', 'forest', 'forest']; const a = normalizeGame(copy).unlockedRegions; const copy2 = JSON.parse(JSON.stringify(game)); copy2.unlockedRegions = 'x'; const b = normalizeGame(copy2).unlockedRegions; return JSON.stringify(a) === '["meadow","forest"]' && JSON.stringify(b) === '["meadow"]'; }));
-  await page.evaluate((real) => { game.discoveredSpecies = real; game.resources = { wood: 30, stone: 10, plant: 30, ore: 0 }; renderAll(); }, realDex);
+  // 펫 자리가 가득 차 있으면 선물을 미뤘다가 자리가 나면 지급
+  const giftFull = await page.evaluate(() => {
+    const keep = game.pets.slice(); game.regionGiftsGiven = [];
+    while (game.pets.length < CONFIG.maxPets) game.pets.push(makePet('sproutbun', ['sturdy']));
+    const whenFull = grantPendingRegionGifts(); const fullCount = game.pets.length; const pending = isRegionGiftPending('forest');
+    renderAll(); const text = document.querySelector('[data-region="forest"]').textContent;
+    game.pets.pop(); const afterSpace = grantPendingRegionGifts(); const last = game.pets[game.pets.length - 1].speciesId;
+    game.pets = keep; game.regionGiftsGiven = ['forest'];
+    return { whenFull, fullCount, pending, text, afterSpace, last };
+  });
+  check('5-3 펫 자리가 가득 차면 선물을 미루고 안내, 자리가 나면 지급', !giftFull.whenFull && giftFull.fullCount === 30 && giftFull.pending && giftFull.text.includes('펫 자리가 나면 새 친구가 찾아와요') && giftFull.afterSpace && giftFull.last === 'mossbear', JSON.stringify(giftFull));
+  // 뒤의 기존 검사(6~8)는 "초원만 개방" 상태 기준이므로 숲을 다시 잠그고 선물 펫을 빼 둔다. 숲 종족 검사는 6-2에서 한다.
+  await page.evaluate((real) => { game.pets.pop(); game.unlockedRegions = ['meadow']; game.regionGiftsGiven = []; game.discoveredSpecies = real; game.resources = { wood: 30, stone: 10, plant: 30, ore: 0 }; renderAll(); }, realDex);
 
   // ---------- 6. 교배·부화·도감 ----------
   await page.click('[data-tab="breed"]');
@@ -207,6 +225,9 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6 신규 종족 도감 등록', hatch.dex === dexBefore + 1 && hatch.last === egg.species && hatch.msg.includes('발견'));
   await page.click('[data-tab="dex"]');
   check('6 도감 탭 표시', (await page.textContent('#panelContent')).includes(`${hatch.dex} / 6`));
+  const dexLocked = await page.evaluate(() => ({ total: document.querySelector('.stat strong').textContent, meadow: document.querySelector('[data-dex-region="meadow"]').textContent, forest: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent) }));
+  check('6 도감: 전체 12종 기준 표시 + 지역별 묶음(초원 n/6, 숲 0/6)', dexLocked.total === `${hatch.dex} / 12` && dexLocked.meadow.includes('초원') && dexLocked.meadow.includes(`${hatch.dex} / 6`) && dexLocked.forest.includes('숲') && dexLocked.forest.includes('0 / 6'), JSON.stringify(dexLocked));
+  check('6 도감: 숲 미개방이면 숲 종족 6칸 모두 "지역 미개방"', dexLocked.hints.filter(h => h === '지역 미개방').length === 6);
   // 교배 통계: 발견 확률·희귀도 가중
   const stats = await page.evaluate(() => {
     const saved = game.discoveredSpecies; game.discoveredSpecies = ['sproutbun', 'pebblelamb'];
@@ -229,6 +250,65 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     return { blocked, stuck, hatchedAfterSpace };
   });
   check('6 펫 한도 도달 시 교배 차단, 묶인 알은 자리 나면 부화', limits.blocked && limits.stuck && limits.hatchedAfterSpace, JSON.stringify(limits));
+
+  // ---------- 6-2. 숲 종족·조합 전용 종족 ----------
+  check('6-2 종족·조합표 데이터 점검(지역·속성·희귀도·조합 키)', await page.evaluate(() => {
+    const speciesOk = Object.values(SPECIES).every(s => REGIONS[s.region] && ELEMENTS[s.element] && RARITIES[s.rarity] && s.name && s.icon);
+    const giftsOk = Object.values(REGIONS).every(r => !r.giftSpecies || (SPECIES[r.giftSpecies] && !SPECIES[r.giftSpecies].breedOnly));
+    const rulesOk = Object.entries(BREEDING_RULES.speciesPairs).every(([key, list]) => { const ids = key.split('+'); return ids.length === 2 && ids.every(id => SPECIES[id]) && pairKey(ids[0], ids[1]) === key && list.every(e => SPECIES[e.speciesId] && e.weight > 0); });
+    const everyBreedOnlyReachable = Object.keys(SPECIES).filter(id => SPECIES[id].breedOnly).every(id => Object.values(BREEDING_RULES.speciesPairs).some(list => list.some(e => e.speciesId === id)));
+    return speciesOk && giftsOk && rulesOk && everyBreedOnlyReachable && Object.keys(SPECIES).length === 12;
+  }));
+  const forest = await page.evaluate(() => {
+    const realDex = game.discoveredSpecies, realRegions = game.unlockedRegions;
+    const meadowIds = Object.keys(SPECIES).filter(id => SPECIES[id].region === 'meadow');
+    const forestIds = Object.keys(SPECIES).filter(id => SPECIES[id].region === 'forest');
+    const N = 20000;
+    const run = (x, y) => { const cnt = {}; for (let i = 0; i < N; i++) { const s = pickChildSpecies(makeParent(x), makeParent(y)); cnt[s] = (cnt[s] || 0) + 1; } return cnt; };
+    const makeParent = (id) => makePet(id, ['sturdy']);
+    const sum = (cnt, ids) => ids.reduce((n, id) => n + (cnt[id] || 0), 0);
+    const out = {};
+    // 숲 미개방
+    game.unlockedRegions = ['meadow']; game.discoveredSpecies = ['sproutbun', 'pebblelamb'];
+    out.lockedForest = sum(run('sproutbun', 'pebblelamb'), forestIds) + sum(run('dewotter', 'breezefox'), forestIds) + sum(run('mossbear', 'pebblelamb'), forestIds);
+    // 숲 개방, 숲 종족은 아직 미발견
+    game.unlockedRegions = ['meadow', 'forest']; game.discoveredSpecies = meadowIds.slice();
+    const fresh = run('embergecko', 'embergecko');     // 불 속성끼리: 기본 규칙으로는 숲 종족이 나올 수 없으므로 숲 종족은 발견 추첨으로만 나온다
+    out.discoverRate = sum(fresh, forestIds) / N;
+    out.discoverBreedOnly = (fresh.mistdeer || 0) + (fresh.elderturtle || 0);
+    out.commonVsRare = [fresh.mossbear || 0, fresh.acornsquirrel || 0, fresh.pineowl || 0, fresh.glowhog || 0];
+    // 모두 발견한 뒤: 조합 전용
+    game.discoveredSpecies = Object.keys(SPECIES);
+    const mist = run('dewotter', 'breezefox'), mistReverse = run('breezefox', 'dewotter'), turtle = run('pebblelamb', 'mossbear');
+    out.mist = mist; out.mistRate = (mist.mistdeer || 0) / N; out.mistReverseRate = (mistReverse.mistdeer || 0) / N;
+    out.turtle = turtle; out.turtleRate = (turtle.elderturtle || 0) / N;
+    const others = [['dewotter', 'dewotter'], ['pebblelamb', 'acornsquirrel'], ['dewotter', 'pebblelamb'], ['mistdeer', 'mistdeer'], ['breezefox', 'pineowl']].map(([x, y]) => run(x, y));
+    out.breedOnlyElsewhere = others.slice(0, 3).reduce((n, cnt) => n + (cnt.mistdeer || 0) + (cnt.elderturtle || 0), 0) + (others[4].mistdeer || 0) + (others[4].elderturtle || 0);
+    out.sameBreedOnlyParents = others[3];
+    out.defaultForest = others[1];
+    game.discoveredSpecies = realDex; game.unlockedRegions = realRegions;
+    return out;
+  });
+  check('6-2 숲 개방 전에는 숲 종족이 태어나지 않음(6만 회)', forest.lockedForest === 0, String(forest.lockedForest));
+  check('6-2 숲 개방 후 숲 종족이 새 종족으로 발견됨(≈18%)', Math.abs(forest.discoverRate - .18) < .02, forest.discoverRate.toFixed(3));
+  check('6-2 발견 추첨에서 조합 전용 종족은 나오지 않음, 일반이 희귀보다 자주', forest.discoverBreedOnly === 0 && Math.min(forest.commonVsRare[0], forest.commonVsRare[1]) > Math.max(forest.commonVsRare[2], forest.commonVsRare[3]), JSON.stringify(forest.commonVsRare));
+  check('6-2 이슬수달+산들여우 → 아슴이 ≈20%, 나머지는 부모 종족(부모 순서 무관)', Math.abs(forest.mistRate - .2) < .02 && Math.abs(forest.mistReverseRate - .2) < .02 && Object.keys(forest.mist).sort().join() === 'breezefox,dewotter,mistdeer', JSON.stringify(forest.mist));
+  check('6-2 몽돌양+끼고미 → 나북이 ≈20%, 나머지는 부모 종족', Math.abs(forest.turtleRate - .2) < .02 && Object.keys(forest.turtle).sort().join() === 'elderturtle,mossbear,pebblelamb', JSON.stringify(forest.turtle));
+  check('6-2 다른 조합에서는 조합 전용 종족이 나오지 않음(8만 회)', forest.breedOnlyElsewhere === 0, String(forest.breedOnlyElsewhere));
+  check('6-2 조합 전용 종족끼리 교배하면 같은 종족이 나올 수 있음', (forest.sameBreedOnlyParents.mistdeer || 0) > 0 && !forest.sameBreedOnlyParents.elderturtle, JSON.stringify(forest.sameBreedOnlyParents));
+  check('6-2 숲 개방 후 기본 규칙에 숲 종족 포함(몽돌양+도토람 → 땅 속성 2종)', Object.keys(forest.defaultForest).sort().join() === 'acornsquirrel,pebblelamb', JSON.stringify(forest.defaultForest));
+  // 화면: 숲 개방 상태의 도감 + 숲 종족 부화
+  const forestUi = await page.evaluate(() => {
+    game.unlockedRegions = ['meadow', 'forest']; game.regionGiftsGiven = ['forest'];   // 이후 검사(9 새로고침 유지)를 위해 개방 상태로 둔다
+    const n = game.pets.length, dex = game.discoveredSpecies.length;
+    game.eggs.push({ id: 'egg_forest', remainingSeconds: 1, result: { speciesId: 'elderturtle', traits: ['smart'], look: null, name: SPECIES.elderturtle.name } });
+    simulateSeconds(2);
+    activeTab = 'dex'; renderAll();
+    return { hatched: game.pets.length === n + 1 && game.pets[game.pets.length - 1].speciesId === 'elderturtle', dexUp: game.discoveredSpecies.length === dex + 1, msg: game.message,
+      forestHead: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent), panel: document.querySelector('#panelContent').textContent, canvasOk: (() => { drawVillage(); return true; })() };
+  });
+  check('6-2 숲 종족 알 부화 → 펫 추가·도감 등록·발견 알림', forestUi.hatched && forestUi.dexUp && forestUi.msg.includes('나북이'), forestUi.msg);
+  check('6-2 도감: 숲 개방 후 숲 1/6, 미발견 조합 전용은 "특별한 부모 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 6') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('나북이') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
 
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');
@@ -302,6 +382,16 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   const old = await page.evaluate(() => ({ res: game.resources, pets: game.pets.map(p => [p.id, p.workBuildingId, p.energy, p.appearance]), eggs: game.eggs.length, looks: game.discoveredLooks, state: petStateLabel(game.pets[0]) }));
   check('12 v0.1 저장 데이터 그대로 불러오기', old.res.wood === 5 && old.pets[0][1] === 'b3' && old.pets[1][3] === '특별 무늬 2' && old.eggs === 1 && old.looks.length === 1 && old.state === '작업 중', JSON.stringify(old));
   check('12 지역 정보가 없는 예전 저장은 초원만 개방된 상태로 불러옴', await page.evaluate(() => JSON.stringify(game.unlockedRegions) === '["meadow"]' && game.resources.wood === 5));
+  await ctx.close();
+  // 숲은 이미 열었지만 선물을 받은 기록이 없는 저장(숲 종족 추가 이전 저장) → 열 때 선물 지급, 한 번만
+  ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  page = await ctx.newPage(); watch(page);
+  await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('little-haven-save-v1', s); sessionStorage.setItem('seeded', '1'); } }, JSON.stringify({ ...oldSave, unlockedRegions: ['meadow', 'forest'] }));
+  await page.goto(URL); await page.waitForTimeout(400);
+  const retro = await page.evaluate(() => ({ pets: game.pets.map(p => p.speciesId), given: game.regionGiftsGiven, dex: game.discoveredSpecies.includes('mossbear') }));
+  await page.reload(); await page.waitForTimeout(400);
+  const retro2 = await page.evaluate(() => game.pets.length);
+  check('12 숲을 이미 연 예전 저장: 열 때 끼고미 소급 지급, 다시 열어도 중복 지급 없음', retro.pets.length === 3 && retro.pets[2] === 'mossbear' && retro.given.includes('forest') && retro.dex && retro2 === 3, JSON.stringify({ retro, retro2 }));
   await ctx.close();
   for (const [label, bad] of [['깨진 JSON', '{oops'], ['빈 객체', '{}'], ['값 손상', JSON.stringify({ ...oldSave, resources: { wood: null, stone: 'x', plant: -5 }, buildings: [{ type: 'farm' }, { type: 'ghost' }], pets: [{ speciesId: 'sproutbun', workBuildingId: 'nope', energy: 'a', traits: ['zzz', 'smart', 'smart'], productionProgress: 9999 }, { speciesId: 'unknown' }], eggs: [{ result: { speciesId: 'nope' } }, null], discoveredSpecies: null })]]) {
     ctx = await browser.newContext(); page = await ctx.newPage(); const e2 = []; page.on('pageerror', x => e2.push(x.message));

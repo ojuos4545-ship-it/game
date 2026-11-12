@@ -98,13 +98,24 @@ const RARITIES = {
   legendary: { label: '전설', discoveryWeight: 0.5 }
 };
 
+/* 종족 표. 이름은 모두 임시이며 나중에 한꺼번에 바꿀 예정이다(이름은 이 표에서만 고치면 된다).
+ * region: 소속 지역(REGIONS의 ID). 그 지역을 개방해야 교배로 태어날 수 있다.
+ * breedOnly: true면 BREEDING_RULES에 등록된 부모 조합에서만 태어난다(새 종족 발견 추첨과 기본 규칙에서 제외).
+ */
 const SPECIES = {
-  sproutbun: { name: '새싹토끼', icon: '🐰', element: 'grass', color: '#c9d99a', rarity: 'common', description: '새싹을 좋아하는 온순한 초원 펫.' },
-  pebblelamb: { name: '몽돌양', icon: '🐑', element: 'earth', color: '#d9c7a5', rarity: 'common', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
-  dewotter: { name: '이슬수달', icon: '🦦', element: 'water', color: '#8cc6d8', rarity: 'common', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
-  breezefox: { name: '산들여우', icon: '🦊', element: 'wind', color: '#e8b58a', rarity: 'rare', description: '바람처럼 빠르게 숲을 누비는 펫.' },
-  embergecko: { name: '불씨도마뱀', icon: '🦎', element: 'fire', color: '#df916e', rarity: 'rare', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
-  sparkchick: { name: '번개병아리', icon: '🐥', element: 'electric', color: '#e7d779', rarity: 'rare', description: '작은 몸에 반짝이는 에너지를 품고 있다.' }
+  sproutbun: { name: '새싹토끼', icon: '🐰', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
+  pebblelamb: { name: '몽돌양', icon: '🐑', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
+  dewotter: { name: '이슬수달', icon: '🦦', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
+  breezefox: { name: '산들여우', icon: '🦊', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
+  embergecko: { name: '불씨도마뱀', icon: '🦎', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
+  sparkchick: { name: '번개병아리', icon: '🐥', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
+
+  mossbear: { name: '끼고미', icon: '🐻', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
+  acornsquirrel: { name: '도토람', icon: '🐿️', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
+  pineowl: { name: '솔붱이', icon: '🦉', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
+  glowhog: { name: '반디치', icon: '🦔', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
+  mistdeer: { name: '아슴이', icon: '🦌', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
+  elderturtle: { name: '나북이', icon: '🐢', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' }
 };
 
 // effect 문구는 아래 코드의 실제 동작과 반드시 일치시킨다.
@@ -133,10 +144,11 @@ const BUILDING_TYPES = {
 /* 지역 표.
  * unlock이 null이면 처음부터 열려 있는 지역이다.
  * unlock: { villageLevel: 필요한 마을 단계, discoveredSpecies: 필요한 발견 종족 수, cost: 개방할 때 소모하는 자원 }
+ * giftSpecies: 지역을 개방하면 1마리 합류하는 종족(SPECIES의 ID)
  */
 const REGIONS = {
   meadow: { name: '초원', icon: '🌾', description: '마을이 자리 잡은 평화로운 풀밭.', unlock: null },
-  forest: { name: '숲', icon: '🌲', description: '키 큰 나무가 우거진 그늘진 땅.', unlock: { villageLevel: 3, discoveredSpecies: 5, cost: { wood: 100, stone: 60 } } }
+  forest: { name: '숲', icon: '🌲', description: '키 큰 나무가 우거진 그늘진 땅.', unlock: { villageLevel: 3, discoveredSpecies: 5, cost: { wood: 100, stone: 60 } }, giftSpecies: 'mossbear' }
 };
 
 /* 교배 조합표.
@@ -146,10 +158,13 @@ const REGIONS = {
  * - elementPairs: 부모 "속성" 조합 결과
  * 표에 없는 조합은 기본 규칙(부모와 같은 속성을 가진 종족 중 하나)으로 처리한다.
  * 새 종족을 SPECIES에 추가한 뒤 여기에 한 줄만 넣으면 전용 조합이 된다.
+ * 아직 개방하지 않은 지역의 종족은 후보에서 자동으로 빠진다.
+ * weight는 나올 비율이다. 아래 두 줄은 전용 종족 1 : 부모 종족 2 : 2 → 전용 종족이 약 20%.
  */
 const BREEDING_RULES = {
   speciesPairs: {
-    // 예시: 'embergecko+sparkchick': [{ speciesId: 'plasmadrake', weight: 1 }]
+    'breezefox+dewotter': [{ speciesId: 'mistdeer', weight: 1 }, { speciesId: 'dewotter', weight: 2 }, { speciesId: 'breezefox', weight: 2 }],
+    'mossbear+pebblelamb': [{ speciesId: 'elderturtle', weight: 1 }, { speciesId: 'mossbear', weight: 2 }, { speciesId: 'pebblelamb', weight: 2 }]
   },
   elementPairs: {
     // 예시: 'fire+water': [{ speciesId: 'steamtoad', weight: 3 }, { speciesId: 'embergecko', weight: 1 }]
@@ -222,7 +237,7 @@ function createInitialGame() {
     resources: { ...CONFIG.startingResources },
     buildings: [plaza, nursery, farm], pets: [p1, p2], eggs: [],
     discoveredSpecies: ['sproutbun', 'pebblelamb'], discoveredLooks: [],
-    unlockedRegions: defaultOpenRegions(),
+    unlockedRegions: defaultOpenRegions(), regionGiftsGiven: [],
     villageLevel: 1, totalDiscoveries: 2, message: '평화로운 초원에 새로운 하루가 시작됐어요.'
   };
 }
@@ -285,6 +300,8 @@ function normalizeGame(saved) {
   // 개방한 지역 목록. 예전 저장에는 없으므로 처음부터 열려 있는 지역만 채운다.
   const regions = defaultOpenRegions().concat(Array.isArray(saved.unlockedRegions) ? saved.unlockedRegions : []);
   saved.unlockedRegions = regions.filter((id, i, arr) => REGIONS[id] && arr.indexOf(id) === i);
+  // 개방 선물을 이미 받은 지역 목록. 없으면 "아직 안 받음"으로 보고, 게임을 열 때 지급한다.
+  saved.regionGiftsGiven = (Array.isArray(saved.regionGiftsGiven) ? saved.regionGiftsGiven : []).filter((id, i, arr) => saved.unlockedRegions.includes(id) && arr.indexOf(id) === i);
   saved.villageLevel = Number(saved.villageLevel) || 1;
   saved.lastTickAt = Number(saved.lastTickAt) || Date.now();
   saved.lastSavedAt = Number(saved.lastSavedAt) || Date.now();
@@ -493,7 +510,34 @@ function unlockRegion(regionId) {
   pay(region.unlock.cost || {});
   game.unlockedRegions.push(regionId);
   game.message = `${region.name} 지역의 안개가 걷혔어요.`;
-  saveGame(); renderAll(); toast(`${region.name} 지역 개방!`);
+  toast(`${region.name} 지역 개방!`);
+  if (!grantPendingRegionGifts() && isRegionGiftPending(regionId)) toast('펫 자리가 가득 찼어요. 자리가 나면 새 친구가 찾아와요.');
+  saveGame(); renderAll();
+}
+function isRegionGiftPending(regionId) {
+  const speciesId = REGIONS[regionId].giftSpecies;
+  return Boolean(speciesId && SPECIES[speciesId]) && isRegionUnlocked(regionId) && !game.regionGiftsGiven.includes(regionId);
+}
+// 개방한 지역의 선물 펫을 아직 받지 못했다면 지급한다. 펫 자리가 없으면 다음 기회로 미룬다.
+// (지역 개방 직후, 게임을 열 때, 펫을 놓아준 뒤에 호출된다.) 한 마리라도 지급하면 true.
+function grantPendingRegionGifts() {
+  let granted = false;
+  game.unlockedRegions.forEach(regionId => {
+    if (!isRegionGiftPending(regionId)) return;
+    if (game.pets.length + game.eggs.length >= CONFIG.maxPets) return;
+    const speciesId = REGIONS[regionId].giftSpecies;
+    const pet = makePet(speciesId);
+    game.pets.push(pet);
+    game.regionGiftsGiven.push(regionId);
+    if (!game.discoveredSpecies.includes(speciesId)) {
+      game.discoveredSpecies.push(speciesId);
+      game.totalDiscoveries = game.discoveredSpecies.length;
+    }
+    game.message = `${REGIONS[regionId].name}에서 ${pet.name}이(가) 마을로 찾아왔어요.`;
+    toast(`${REGIONS[regionId].name}의 새 친구 ${pet.name}이(가) 합류했어요!`);
+    granted = true;
+  });
+  return granted;
 }
 
 function updateVillageLevel() {
@@ -539,9 +583,10 @@ function regionRequirementsHtml(regionId) {
 }
 function renderRegions() {
   return Object.entries(REGIONS).map(([id, region]) => {
-    if (isRegionUnlocked(id)) return `<div class="info-box" data-region="${id}" style="margin-bottom:7px"><b>${region.icon} ${region.name}</b> · 개방됨<br><span style="color:#adbea9">${region.description}</span></div>`;
+    if (isRegionUnlocked(id)) return `<div class="info-box" data-region="${id}" style="margin-bottom:7px"><b>${region.icon} ${region.name}</b> · 개방됨<br><span style="color:#adbea9">${region.description}</span>${isRegionGiftPending(id) ? '<br>🎁 펫 자리가 나면 새 친구가 찾아와요.' : ''}</div>`;
     const ready = canUnlockRegion(id);
-    return `<div class="info-box" data-region="${id}" style="margin-bottom:7px;border-style:dashed"><b>🌫️ ${region.name}</b> · 안개에 가려진 지역<br><span data-region-req="${id}">${regionRequirementsHtml(id)}</span><button class="btn ${ready ? 'primary' : 'secondary'} full" style="margin-top:8px" data-unlock-region="${id}" ${ready ? '' : 'disabled'}>안개 걷어내기</button></div>`;
+    const gift = region.giftSpecies && SPECIES[region.giftSpecies] ? '<br>🎁 개방하면 이 지역의 펫 1마리가 합류해요.' : '';
+    return `<div class="info-box" data-region="${id}" style="margin-bottom:7px;border-style:dashed"><b>🌫️ ${region.name}</b> · 안개에 가려진 지역<br><span data-region-req="${id}">${regionRequirementsHtml(id)}</span>${gift}<button class="btn ${ready ? 'primary' : 'secondary'} full" style="margin-top:8px" data-unlock-region="${id}" ${ready ? '' : 'disabled'}>안개 걷어내기</button></div>`;
   }).join('');
 }
 
@@ -607,7 +652,7 @@ function renderBreedTab() {
   const eggTime = (egg) => egg.waitingForSpace ? '공간 부족' : formatTime(egg.remainingSeconds);
   const full = game.pets.length + game.eggs.length >= CONFIG.maxPets;
   const breedForm = game.pets.length < 2 ? '<div class="empty-state">교배하려면 펫이 두 마리 이상 필요해요.</div>'
-    : `<label class="field-label" for="parentA">첫 번째 부모</label><select class="select" id="parentA">${options(ui.parentA)}</select><label class="field-label" for="parentB">두 번째 부모</label><select class="select" id="parentB">${options(ui.parentB)}</select><div class="info-box" style="margin-top:10px">${full ? `펫과 알의 합이 보관 한도(${CONFIG.maxPets})에 도달했어요. 펫 메뉴에서 펫을 놓아주면 다시 교배할 수 있어요.` : '부모 속성 조합을 바탕으로 자식 후보가 결정됩니다. 희귀 종족과 복합 속성은 추후 확장할 수 있도록 구조를 분리했습니다.'}</div><button class="btn primary full" id="breedButton" style="margin-top:12px">교배 시작하기</button>`;
+    : `<label class="field-label" for="parentA">첫 번째 부모</label><select class="select" id="parentA">${options(ui.parentA)}</select><label class="field-label" for="parentB">두 번째 부모</label><select class="select" id="parentB">${options(ui.parentB)}</select><div class="info-box" style="margin-top:10px">${full ? `펫과 알의 합이 보관 한도(${CONFIG.maxPets})에 도달했어요. 펫 메뉴에서 펫을 놓아주면 다시 교배할 수 있어요.` : '부모의 속성을 바탕으로 자식 후보가 결정됩니다. 일부 종족은 특정한 부모 조합에서만 태어나고, 새 지역의 종족은 그 지역을 개방한 뒤에만 태어납니다.'}</div><button class="btn primary full" id="breedButton" style="margin-top:12px">교배 시작하기</button>`;
   return `<h2 class="section-title">교배장</h2><p class="section-description">두 펫의 속성과 특성이 다음 세대에 이어질 수 있어요. 성별 제한은 없습니다.</p>
     ${game.eggs.length ? `<div class="subheading"><span>부화 대기 중인 알</span><span class="count-pill">${game.eggs.length}/${CONFIG.maxEggs}개</span></div>${game.eggs.map(egg => `<div class="egg-card"><span class="egg-icon">🥚</span><span class="egg-info"><strong>정체를 알 수 없는 알</strong><small>부화 결과는 아직 공개되지 않아요.</small></span><span class="egg-time" data-egg-time="${egg.id}">${eggTime(egg)}</span></div>`).join('')}` : '<div class="empty-state">아직 부화 대기 중인 알이 없어요.</div>'}
     <div class="subheading"><span>새로운 알 만들기</span><span class="count-pill">부모 각각 에너지 ${CONFIG.breedEnergyCost} 소모</span></div>
@@ -616,11 +661,21 @@ function renderBreedTab() {
 }
 
 function renderDexTab() {
-  const cards = Object.entries(SPECIES).map(([id, species]) => {
-    const found = game.discoveredSpecies.includes(id);
-    return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${ELEMENTS[species.element].label} · ${RARITIES[species.rarity].label}` : '발견 조건 미확인'}</small></div>`;
+  // 지역별로 묶어서 보여 준다.
+  const groups = Object.entries(REGIONS).map(([regionId, region]) => {
+    const ids = Object.keys(SPECIES).filter(id => SPECIES[id].region === regionId);
+    if (!ids.length) return '';
+    const open = isRegionUnlocked(regionId);
+    const foundCount = ids.filter(id => game.discoveredSpecies.includes(id)).length;
+    const cards = ids.map(id => {
+      const species = SPECIES[id];
+      const found = game.discoveredSpecies.includes(id);
+      const hint = !open ? '지역 미개방' : species.breedOnly ? '특별한 부모 조합 필요' : '발견 조건 미확인';
+      return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${ELEMENTS[species.element].label} · ${RARITIES[species.rarity].label}` : hint}</small></div>`;
+    }).join('');
+    return `<div class="subheading" data-dex-region="${regionId}"><span>${open ? region.icon : '🌫️'} ${region.name}</span><span class="count-pill">${foundCount} / ${ids.length}</span></div><div class="dex-grid">${cards}</div>`;
   }).join('');
-  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div><div class="dex-grid">${cards}</div><div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${SPECIES[id].icon} ${SPECIES[id].name}</b> · ${ELEMENTS[SPECIES[id].element].label} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span></div>`).join('')}`;
+  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div>${groups}<div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${SPECIES[id].icon} ${SPECIES[id].name}</b> · ${ELEMENTS[SPECIES[id].element].label} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span></div>`).join('')}`;
 }
 
 // 화면 전체를 다시 그린다. 버튼을 누르거나 알이 부화하는 등 "구성"이 바뀔 때만 호출한다.
@@ -784,6 +839,7 @@ function releaseSelectedPet() {
   game.pets = game.pets.filter(p => p.id !== pet.id);
   ui.pendingWork = null;
   selectedPetId = game.pets[0]?.id || null;
+  grantPendingRegionGifts(); // 자리가 없어 미뤄 둔 지역 선물이 있으면 지금 지급한다.
   game.message = `${pet.name}이(가) 초원으로 돌아갔어요.`;
   saveGame(); renderAll(); toast(game.message);
 }
@@ -791,8 +847,10 @@ function releaseSelectedPet() {
 function pickChildSpecies(parentA, parentB) {
   const a = SPECIES[parentA.speciesId];
   const b = SPECIES[parentB.speciesId];
-  // A discovery roll allows unowned Meadow species to enter the collection loop in this MVP.
-  const undiscovered = Object.keys(SPECIES).filter(id => !game.discoveredSpecies.includes(id));
+  // 개방한 지역의 종족만 태어날 수 있다.
+  const available = (id) => isRegionUnlocked(SPECIES[id].region);
+  // 새 종족 발견 추첨: 아직 발견하지 못한 종족이 수집 목록에 들어올 기회를 준다(조합 전용 종족은 제외).
+  const undiscovered = Object.keys(SPECIES).filter(id => available(id) && !SPECIES[id].breedOnly && !game.discoveredSpecies.includes(id));
   const curiousParents = [parentA, parentB].filter(parent => traitHas(parent, 'curious')).length;
   const discoveryChance = CONFIG.discoveryChance + curiousParents * CONFIG.curiousDiscoveryBonus;
   if (undiscovered.length && Math.random() < discoveryChance) {
@@ -800,11 +858,12 @@ function pickChildSpecies(parentA, parentB) {
   }
   // 조합표에 전용 결과가 있으면 그것을 쓴다(종족 조합 → 속성 조합 순).
   const table = BREEDING_RULES.speciesPairs[pairKey(parentA.speciesId, parentB.speciesId)] || BREEDING_RULES.elementPairs[pairKey(a.element, b.element)];
-  const tableEntries = (table || []).filter(entry => SPECIES[entry.speciesId]).map(entry => ({ id: entry.speciesId, weight: entry.weight || 1 }));
+  const tableEntries = (table || []).filter(entry => SPECIES[entry.speciesId] && available(entry.speciesId)).map(entry => ({ id: entry.speciesId, weight: entry.weight || 1 }));
   if (tableEntries.length) return weightedPick(tableEntries);
-  // 기본 규칙: 부모 중 하나와 같은 속성의 종족.
-  const candidates = Object.entries(SPECIES).filter(([, species]) => species.element === a.element || species.element === b.element);
-  const pool = (candidates.length ? candidates : Object.entries(SPECIES)).map(([id]) => ({ id, weight: 1 }));
+  // 기본 규칙: 부모 중 하나와 같은 속성의 종족(조합 전용 종족은 제외).
+  const normal = Object.entries(SPECIES).filter(([id, species]) => available(id) && !species.breedOnly);
+  const candidates = normal.filter(([, species]) => species.element === a.element || species.element === b.element);
+  const pool = (candidates.length ? candidates : normal).map(([id]) => ({ id, weight: 1 }));
   if (parentA.speciesId === parentB.speciesId) pool.push({ id: parentA.speciesId, weight: CONFIG.sameSpeciesExtraWeight });
   return weightedPick(pool);
 }
@@ -1005,6 +1064,7 @@ function bindGlobalEvents() {
 
 function startGame() {
   game=loadGame();
+  grantPendingRegionGifts(); // 이미 개방한 지역의 선물을 아직 못 받은 저장이면 지금 지급한다.
   if(!game.pets.some(p=>p.id===selectedPetId))selectedPetId=game.pets[0]?.id||null;
   renderAll();
   // 게임을 꺼 둔 동안 흐른 시간을 한 번만 반영하고, 반영 직후 저장해 다음 실행 때 다시 계산되지 않게 한다.
