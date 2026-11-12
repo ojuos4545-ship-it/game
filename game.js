@@ -130,6 +130,15 @@ const BUILDING_TYPES = {
   smelter: { name: '제련소', icon: '🔥', cost: { wood: 14, stone: 10, ore: 4 }, output: 'ore', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['fire', 'electric'], description: '광석을 모으고 정제' }
 };
 
+/* 지역 표.
+ * unlock이 null이면 처음부터 열려 있는 지역이다.
+ * unlock: { villageLevel: 필요한 마을 단계, discoveredSpecies: 필요한 발견 종족 수, cost: 개방할 때 소모하는 자원 }
+ */
+const REGIONS = {
+  meadow: { name: '초원', icon: '🌾', description: '마을이 자리 잡은 평화로운 풀밭.', unlock: null },
+  forest: { name: '숲', icon: '🌲', description: '키 큰 나무가 우거진 그늘진 땅.', unlock: { villageLevel: 3, discoveredSpecies: 5, cost: { wood: 100, stone: 60 } } }
+};
+
 /* 교배 조합표.
  * 키는 두 ID를 가나다(알파벳) 순으로 정렬해 '+'로 이은 문자열이다. 예: 'fire+water'
  * 값은 [{ speciesId, weight }] 후보 목록이다.
@@ -200,6 +209,8 @@ function makePet(speciesId, traits = null) {
   };
 }
 
+function defaultOpenRegions() { return Object.keys(REGIONS).filter(id => !REGIONS[id].unlock); }
+
 function createInitialGame() {
   const plaza = { id: uid('building'), type: 'plaza', x: 0.5, y: 0.48, level: 1 };
   const nursery = { id: uid('building'), type: 'nursery', x: 0.73, y: 0.35, level: 1 };
@@ -211,6 +222,7 @@ function createInitialGame() {
     resources: { ...CONFIG.startingResources },
     buildings: [plaza, nursery, farm], pets: [p1, p2], eggs: [],
     discoveredSpecies: ['sproutbun', 'pebblelamb'], discoveredLooks: [],
+    unlockedRegions: defaultOpenRegions(),
     villageLevel: 1, totalDiscoveries: 2, message: '평화로운 초원에 새로운 하루가 시작됐어요.'
   };
 }
@@ -270,6 +282,9 @@ function normalizeGame(saved) {
   saved.discoveredSpecies = discovered.filter((id, i, arr) => SPECIES[id] && arr.indexOf(id) === i);
   saved.discoveredLooks = Array.isArray(saved.discoveredLooks) ? saved.discoveredLooks.filter(look => typeof look === 'string') : [];
   saved.totalDiscoveries = saved.discoveredSpecies.length;
+  // 개방한 지역 목록. 예전 저장에는 없으므로 처음부터 열려 있는 지역만 채운다.
+  const regions = defaultOpenRegions().concat(Array.isArray(saved.unlockedRegions) ? saved.unlockedRegions : []);
+  saved.unlockedRegions = regions.filter((id, i, arr) => REGIONS[id] && arr.indexOf(id) === i);
   saved.villageLevel = Number(saved.villageLevel) || 1;
   saved.lastTickAt = Number(saved.lastTickAt) || Date.now();
   saved.lastSavedAt = Number(saved.lastSavedAt) || Date.now();
@@ -450,11 +465,41 @@ function hatchEgg(egg) {
   return true;
 }
 
+function villageScore() { return game.buildings.length + game.discoveredSpecies.length * 2; }
+function currentVillageLevel() {
+  const score = villageScore();
+  let level = 1;
+  CONFIG.villageLevelThresholds.forEach((threshold, index) => { if (score >= threshold) level = index + 1; });
+  return level;
+}
+
+// 지역 개방 규칙
+function isRegionUnlocked(regionId) { return game.unlockedRegions.includes(regionId); }
+function regionRequirements(regionId) {
+  const unlock = REGIONS[regionId].unlock || {};
+  const list = [];
+  if (unlock.villageLevel) list.push({ label: '마을 단계', current: currentVillageLevel(), target: unlock.villageLevel });
+  if (unlock.discoveredSpecies) list.push({ label: '발견 종족', current: game.discoveredSpecies.length, target: unlock.discoveredSpecies });
+  Object.entries(unlock.cost || {}).forEach(([key, value]) => list.push({ label: `${resourceLabel(key)} (개방 시 소모)`, current: Math.floor(game.resources[key]), target: value }));
+  return list.map(item => ({ ...item, met: item.current >= item.target }));
+}
+function canUnlockRegion(regionId) {
+  return Boolean(REGIONS[regionId]) && !isRegionUnlocked(regionId) && regionRequirements(regionId).every(item => item.met);
+}
+function unlockRegion(regionId) {
+  const region = REGIONS[regionId];
+  if (!region || isRegionUnlocked(regionId)) return;
+  if (!canUnlockRegion(regionId)) return toast('아직 개방 조건을 채우지 못했어요.');
+  pay(region.unlock.cost || {});
+  game.unlockedRegions.push(regionId);
+  game.message = `${region.name} 지역의 안개가 걷혔어요.`;
+  saveGame(); renderAll(); toast(`${region.name} 지역 개방!`);
+}
+
 function updateVillageLevel() {
   const thresholds = CONFIG.villageLevelThresholds;
-  const score = game.buildings.length + game.discoveredSpecies.length * 2;
-  let level = 1;
-  thresholds.forEach((threshold, index) => { if (score >= threshold) level = index + 1; });
+  const score = villageScore();
+  const level = currentVillageLevel();
   game.villageLevel = level;
   const current = thresholds[level - 1];
   const next = thresholds[level];
@@ -489,6 +534,17 @@ function renderPetCard(pet) {
   </button>`;
 }
 
+function regionRequirementsHtml(regionId) {
+  return regionRequirements(regionId).map(item => `${item.met ? '✅' : '⬜'} ${item.label} ${item.current}/${item.target}`).join('<br>');
+}
+function renderRegions() {
+  return Object.entries(REGIONS).map(([id, region]) => {
+    if (isRegionUnlocked(id)) return `<div class="info-box" data-region="${id}" style="margin-bottom:7px"><b>${region.icon} ${region.name}</b> · 개방됨<br><span style="color:#adbea9">${region.description}</span></div>`;
+    const ready = canUnlockRegion(id);
+    return `<div class="info-box" data-region="${id}" style="margin-bottom:7px;border-style:dashed"><b>🌫️ ${region.name}</b> · 안개에 가려진 지역<br><span data-region-req="${id}">${regionRequirementsHtml(id)}</span><button class="btn ${ready ? 'primary' : 'secondary'} full" style="margin-top:8px" data-unlock-region="${id}" ${ready ? '' : 'disabled'}>안개 걷어내기</button></div>`;
+  }).join('');
+}
+
 function renderVillageTab() {
   const buildings = game.buildings.map(building => {
     const meta = BUILDING_TYPES[building.type];
@@ -509,6 +565,7 @@ function renderVillageTab() {
   return `<h2 class="section-title">마을 관리</h2><p class="section-description">작업장을 세우고 펫을 배치해 마을의 기반을 넓혀보세요.</p>
     <div class="subheading"><span>건설된 시설</span><span class="count-pill">${game.buildings.length}개</span></div><div class="build-grid">${buildings}</div>
     <div class="subheading"><span>새 시설 건설</span><span class="count-pill">자원 사용</span></div><div class="build-grid">${buildCards || '<div class="empty-state">모든 기본 생산 시설을 건설했어요.</div>'}</div>
+    <div class="subheading"><span>지역</span><span class="count-pill">${game.unlockedRegions.length}/${Object.keys(REGIONS).length} 개방</span></div>${renderRegions()}
     <div class="subheading"><span>현재 펫</span><span class="count-pill">${game.pets.length}마리</span></div><div class="pet-list">${game.pets.map(renderPetCard).join('')}</div>
     ${renderSelectedPetPanel()}`;
 }
@@ -600,6 +657,16 @@ function refreshLive() {
     button.classList.toggle('primary', affordable);
     button.classList.toggle('secondary', !affordable);
   });
+  panel.querySelectorAll('[data-region-req]').forEach(node => {
+    const html = regionRequirementsHtml(node.dataset.regionReq);
+    if (node.dataset.shown !== html) { node.innerHTML = html; node.dataset.shown = html; }
+  });
+  panel.querySelectorAll('[data-unlock-region]').forEach(button => {
+    const ready = canUnlockRegion(button.dataset.unlockRegion);
+    button.disabled = !ready;
+    button.classList.toggle('primary', ready);
+    button.classList.toggle('secondary', !ready);
+  });
   panel.querySelectorAll('[data-upgrade]').forEach(button => {
     const building = getBuildingById(button.dataset.upgrade);
     const affordable = Boolean(building) && canUpgrade(building) && canAfford(upgradeCost(building));
@@ -621,6 +688,7 @@ function bindPanelEvents() {
   }));
   document.querySelectorAll('[data-build]').forEach(button => button.addEventListener('click', () => build(button.dataset.build)));
   document.querySelectorAll('[data-upgrade]').forEach(button => button.addEventListener('click', () => upgradeBuilding(button.dataset.upgrade)));
+  document.querySelectorAll('[data-unlock-region]').forEach(button => button.addEventListener('click', () => unlockRegion(button.dataset.unlockRegion)));
   document.querySelectorAll('[data-focus-building]').forEach(button => button.addEventListener('click', () => {
     const building = getBuildingById(button.dataset.focusBuilding);
     if (!building) return;

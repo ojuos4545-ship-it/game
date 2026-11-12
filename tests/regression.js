@@ -157,6 +157,27 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('5-2 최대 레벨에서 직접 호출해도 변화 없음', await page.evaluate((id) => { upgradeBuilding(id); return getBuildingById(id).level === 3 && game.resources.wood === 76; }, lumberId));
   check('5-2 저장 데이터의 비정상 레벨(99)은 최대 레벨로 보정', await page.evaluate(() => { const copy = JSON.parse(JSON.stringify(game)); copy.buildings.find(b => b.type === 'farm').level = 99; return normalizeGame(copy).buildings.find(b => b.type === 'farm').level === CONFIG.maxBuildingLevel; }));
 
+  // ---------- 5-3. 지역 개방 (숲: 마을 3단계 + 도감 5종 + 목재 100·돌 60 소모) ----------
+  // 이 시점: 건물 6개 + 발견 2종 → 마을 2단계. 검사를 위해 발견 종족만 잠시 바꾸고 끝나면 되돌린다.
+  const unlockSel = '[data-unlock-region="forest"]';
+  const reg0 = await page.evaluate(() => { game.resources = { wood: 500, stone: 500, plant: 30, ore: 0 }; activeTab = 'village'; renderAll(); return { regions: game.unlockedRegions.slice(), level: currentVillageLevel(), text: document.querySelector('[data-region="forest"]').textContent, meadow: document.querySelector('[data-region="meadow"]').textContent }; });
+  check('5-3 새 게임은 초원만 개방', JSON.stringify(reg0.regions) === '["meadow"]' && reg0.meadow.includes('개방됨'), JSON.stringify(reg0.regions));
+  check('5-3 숲은 안개 상태로 조건·달성도 표시', reg0.text.includes('안개에 가려진 지역') && reg0.text.includes('⬜ 마을 단계 2/3') && reg0.text.includes('⬜ 발견 종족 2/5') && reg0.text.includes('✅ 🪵 목재 (개방 시 소모) 500/100') && reg0.text.includes('✅ 🪨 돌 (개방 시 소모) 500/60'), reg0.text);
+  check('5-3 자원이 충분해도 마을 단계·도감 조건 미달이면 버튼 비활성', await page.isDisabled(unlockSel));
+  check('5-3 조건 미달이면 직접 호출해도 거부', await page.evaluate(() => { unlockRegion('forest'); return !isRegionUnlocked('forest') && game.resources.wood === 500; }));
+  const realDex = await page.evaluate(() => { const real = game.discoveredSpecies; game.discoveredSpecies = ['sproutbun', 'pebblelamb', 'dewotter', 'breezefox', 'embergecko']; game.resources.wood = 99; game.resources.stone = 60; renderAll(); return real; });
+  check('5-3 마을 3단계·도감 5종이어도 목재가 1 모자라면 거부', await page.evaluate(() => currentVillageLevel() === 3) && await page.isDisabled(unlockSel) && await page.evaluate(() => { unlockRegion('forest'); return !isRegionUnlocked('forest') && game.resources.wood === 99; }));
+  await page.evaluate(() => { game.resources.wood = 130; game.resources.stone = 70; });
+  await page.waitForTimeout(1300);   // 다시 그리지 않아도 매초 갱신으로 버튼이 켜지는지
+  check('5-3 조건을 채우면 달성도 갱신 + 버튼 활성(매초 갱신)', !(await page.isDisabled(unlockSel)) && (await page.textContent('[data-region-req="forest"]')).includes('✅ 마을 단계 3/3'), await page.textContent('[data-region-req="forest"]'));
+  await page.click(unlockSel);
+  const reg1 = await page.evaluate(() => ({ regions: game.unlockedRegions.slice(), wood: game.resources.wood, stone: game.resources.stone, text: document.querySelector('[data-region="forest"]').textContent, button: !!document.querySelector('[data-unlock-region]'), saved: JSON.parse(localStorage.getItem(CONFIG.saveKey)).unlockedRegions }));
+  check('5-3 개방 → 목재 -100, 돌 -60, 즉시 저장', JSON.stringify(reg1.regions) === '["meadow","forest"]' && reg1.wood === 30 && reg1.stone === 10 && reg1.saved.includes('forest'), JSON.stringify(reg1));
+  check('5-3 개방 후 "개방됨" 표시, 버튼 사라짐', reg1.text.includes('🌲 숲') && reg1.text.includes('개방됨') && !reg1.button, reg1.text);
+  check('5-3 이미 개방한 지역은 다시 호출해도 자원이 줄지 않음', await page.evaluate(() => { game.resources.wood = 200; game.resources.stone = 200; unlockRegion('forest'); return game.resources.wood === 200 && game.unlockedRegions.length === 2; }));
+  check('5-3 저장 데이터의 잘못된 지역 목록 보정(없는 지역 제거·중복 제거·초원 유지)', await page.evaluate(() => { const copy = JSON.parse(JSON.stringify(game)); copy.unlockedRegions = ['ghost', 'forest', 'forest']; const a = normalizeGame(copy).unlockedRegions; const copy2 = JSON.parse(JSON.stringify(game)); copy2.unlockedRegions = 'x'; const b = normalizeGame(copy2).unlockedRegions; return JSON.stringify(a) === '["meadow","forest"]' && JSON.stringify(b) === '["meadow"]'; }));
+  await page.evaluate((real) => { game.discoveredSpecies = real; game.resources = { wood: 30, stone: 10, plant: 30, ore: 0 }; renderAll(); }, realDex);
+
   // ---------- 6. 교배·부화·도감 ----------
   await page.click('[data-tab="breed"]');
   await page.selectOption('#parentB', { index: 3 });
@@ -232,6 +253,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   const s2 = await snap();
   check('9 새로고침 후 펫·자원·건물·알·도감 유지', JSON.stringify(s1) === JSON.stringify(s2), JSON.stringify(s2).slice(0, 160));
   check('9 새로고침 후 시설 레벨 유지(벌목장 3, 채굴장 2, 농장 1)', await page.evaluate(() => getBuilding('lumber').level === 3 && getBuilding('quarry').level === 2 && getBuilding('farm').level === 1));
+  check('9 새로고침 후 개방한 지역 유지', await page.evaluate(() => JSON.stringify(game.unlockedRegions) === '["meadow","forest"]'));
   check('9 저장 데이터 버전 필드 유지', s2.v === 1 && await page.evaluate(() => JSON.parse(localStorage.getItem(CONFIG.saveKey)).version === 1));
 
   // ---------- 10. 오프라인 진행 (게임을 끄고 1시간 뒤 다시 열기) ----------
@@ -279,6 +301,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.goto(URL); await page.waitForTimeout(400);
   const old = await page.evaluate(() => ({ res: game.resources, pets: game.pets.map(p => [p.id, p.workBuildingId, p.energy, p.appearance]), eggs: game.eggs.length, looks: game.discoveredLooks, state: petStateLabel(game.pets[0]) }));
   check('12 v0.1 저장 데이터 그대로 불러오기', old.res.wood === 5 && old.pets[0][1] === 'b3' && old.pets[1][3] === '특별 무늬 2' && old.eggs === 1 && old.looks.length === 1 && old.state === '작업 중', JSON.stringify(old));
+  check('12 지역 정보가 없는 예전 저장은 초원만 개방된 상태로 불러옴', await page.evaluate(() => JSON.stringify(game.unlockedRegions) === '["meadow"]' && game.resources.wood === 5));
   await ctx.close();
   for (const [label, bad] of [['깨진 JSON', '{oops'], ['빈 객체', '{}'], ['값 손상', JSON.stringify({ ...oldSave, resources: { wood: null, stone: 'x', plant: -5 }, buildings: [{ type: 'farm' }, { type: 'ghost' }], pets: [{ speciesId: 'sproutbun', workBuildingId: 'nope', energy: 'a', traits: ['zzz', 'smart', 'smart'], productionProgress: 9999 }, { speciesId: 'unknown' }], eggs: [{ result: { speciesId: 'nope' } }, null], discoveredSpecies: null })]]) {
     ctx = await browser.newContext(); page = await ctx.newPage(); const e2 = []; page.on('pageerror', x => e2.push(x.message));
