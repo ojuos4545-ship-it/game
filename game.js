@@ -103,12 +103,12 @@ const RARITIES = {
  * breedOnly: true면 BREEDING_RULES에 등록된 부모 조합에서만 태어난다(새 종족 발견 추첨과 기본 규칙에서 제외).
  */
 const SPECIES = {
-  sproutbun: { name: '새싹토끼', icon: '🐰', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
-  pebblelamb: { name: '몽돌양', icon: '🐑', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
-  dewotter: { name: '이슬수달', icon: '🦦', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
-  breezefox: { name: '산들여우', icon: '🦊', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
-  embergecko: { name: '불씨도마뱀', icon: '🦎', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
-  sparkchick: { name: '번개병아리', icon: '🐥', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
+  sproutbun: { name: '싹총이', icon: '🐰', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
+  pebblelamb: { name: '몽양이', icon: '🐑', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
+  dewotter: { name: '슬달이', icon: '🦦', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
+  breezefox: { name: '산들우', icon: '🦊', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
+  embergecko: { name: '불또마', icon: '🦎', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
+  sparkchick: { name: '번아리', icon: '🐥', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
 
   mossbear: { name: '끼고미', icon: '🐻', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
   acornsquirrel: { name: '도토람', icon: '🐿️', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
@@ -116,6 +116,19 @@ const SPECIES = {
   glowhog: { name: '반디치', icon: '🦔', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
   mistdeer: { name: '아슴이', icon: '🦌', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
   elderturtle: { name: '나북이', icon: '🐢', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' }
+};
+
+/* 종족의 예전 이름.
+ * 펫과 알은 태어날 때의 종족 이름을 저장 데이터에 함께 담고 있다. 종족 이름을 바꾸면 예전 이름을 여기에 적어 둔다.
+ * 그러면 예전 저장을 불러올 때 그 이름이 지금 이름으로 바뀐다. (이름을 다시 바꿀 때는 직전 이름을 목록에 추가한다.)
+ */
+const LEGACY_SPECIES_NAMES = {
+  sproutbun: ['새싹토끼'],
+  pebblelamb: ['몽돌양'],
+  dewotter: ['이슬수달'],
+  breezefox: ['산들여우'],
+  embergecko: ['불씨도마뱀'],
+  sparkchick: ['번개병아리']
 };
 
 // effect 문구는 아래 코드의 실제 동작과 반드시 일치시킨다.
@@ -224,6 +237,12 @@ function makePet(speciesId, traits = null) {
   };
 }
 
+// 저장된 이름이 비어 있거나 그 종족의 예전 이름이면 지금 종족 이름을 돌려준다.
+function currentPetName(speciesId, savedName) {
+  const legacy = LEGACY_SPECIES_NAMES[speciesId] || [];
+  return typeof savedName === 'string' && savedName && !legacy.includes(savedName) ? savedName : SPECIES[speciesId].name;
+}
+
 function defaultOpenRegions() { return Object.keys(REGIONS).filter(id => !REGIONS[id].unlock); }
 
 function createInitialGame() {
@@ -271,7 +290,7 @@ function normalizeGame(saved) {
     const workBuildingId = workplaceIds.has(p.workBuildingId) ? p.workBuildingId : null;
     return {
       ...p, id: p.id || uid('pet'), traits, maxEnergy,
-      name: typeof p.name === 'string' && p.name ? p.name : SPECIES[p.speciesId].name,
+      name: currentPetName(p.speciesId, p.name),
       energy: clamp(Number(p.energy) || 0, 0, maxEnergy),
       workBuildingId, resting: Boolean(workBuildingId && p.resting),
       productionProgress: clamp(Number(p.productionProgress) || 0, 0, CONFIG.productionIntervalSeconds),
@@ -286,7 +305,7 @@ function normalizeGame(saved) {
 
   saved.eggs = (Array.isArray(saved.eggs) ? saved.eggs : []).filter(egg => egg && egg.result && SPECIES[egg.result.speciesId]).map(egg => ({
     ...egg, id: egg.id || uid('egg'), remainingSeconds: Math.max(0, Number(egg.remainingSeconds) || 0),
-    result: { ...egg.result, traits: Array.isArray(egg.result.traits) ? egg.result.traits.filter(t => TRAITS[t]) : [] }
+    result: { ...egg.result, name: currentPetName(egg.result.speciesId, egg.result.name), traits: Array.isArray(egg.result.traits) ? egg.result.traits.filter(t => TRAITS[t]) : [] }
   }));
 
   // 펫도 알도 없으면 더 이상 진행할 방법이 없으므로 새 마을로 시작한다.

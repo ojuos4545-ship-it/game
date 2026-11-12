@@ -292,11 +292,11 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-2 숲 개방 전에는 숲 종족이 태어나지 않음(6만 회)', forest.lockedForest === 0, String(forest.lockedForest));
   check('6-2 숲 개방 후 숲 종족이 새 종족으로 발견됨(≈18%)', Math.abs(forest.discoverRate - .18) < .02, forest.discoverRate.toFixed(3));
   check('6-2 발견 추첨에서 조합 전용 종족은 나오지 않음, 일반이 희귀보다 자주', forest.discoverBreedOnly === 0 && Math.min(forest.commonVsRare[0], forest.commonVsRare[1]) > Math.max(forest.commonVsRare[2], forest.commonVsRare[3]), JSON.stringify(forest.commonVsRare));
-  check('6-2 이슬수달+산들여우 → 아슴이 ≈20%, 나머지는 부모 종족(부모 순서 무관)', Math.abs(forest.mistRate - .2) < .02 && Math.abs(forest.mistReverseRate - .2) < .02 && Object.keys(forest.mist).sort().join() === 'breezefox,dewotter,mistdeer', JSON.stringify(forest.mist));
-  check('6-2 몽돌양+끼고미 → 나북이 ≈20%, 나머지는 부모 종족', Math.abs(forest.turtleRate - .2) < .02 && Object.keys(forest.turtle).sort().join() === 'elderturtle,mossbear,pebblelamb', JSON.stringify(forest.turtle));
+  check('6-2 슬달이+산들우 → 아슴이 ≈20%, 나머지는 부모 종족(부모 순서 무관)', Math.abs(forest.mistRate - .2) < .02 && Math.abs(forest.mistReverseRate - .2) < .02 && Object.keys(forest.mist).sort().join() === 'breezefox,dewotter,mistdeer', JSON.stringify(forest.mist));
+  check('6-2 몽양이+끼고미 → 나북이 ≈20%, 나머지는 부모 종족', Math.abs(forest.turtleRate - .2) < .02 && Object.keys(forest.turtle).sort().join() === 'elderturtle,mossbear,pebblelamb', JSON.stringify(forest.turtle));
   check('6-2 다른 조합에서는 조합 전용 종족이 나오지 않음(8만 회)', forest.breedOnlyElsewhere === 0, String(forest.breedOnlyElsewhere));
   check('6-2 조합 전용 종족끼리 교배하면 같은 종족이 나올 수 있음', (forest.sameBreedOnlyParents.mistdeer || 0) > 0 && !forest.sameBreedOnlyParents.elderturtle, JSON.stringify(forest.sameBreedOnlyParents));
-  check('6-2 숲 개방 후 기본 규칙에 숲 종족 포함(몽돌양+도토람 → 땅 속성 2종)', Object.keys(forest.defaultForest).sort().join() === 'acornsquirrel,pebblelamb', JSON.stringify(forest.defaultForest));
+  check('6-2 숲 개방 후 기본 규칙에 숲 종족 포함(몽양이+도토람 → 땅 속성 2종)', Object.keys(forest.defaultForest).sort().join() === 'acornsquirrel,pebblelamb', JSON.stringify(forest.defaultForest));
   // 화면: 숲 개방 상태의 도감 + 숲 종족 부화
   const forestUi = await page.evaluate(() => {
     game.unlockedRegions = ['meadow', 'forest']; game.regionGiftsGiven = ['forest'];   // 이후 검사(9 새로고침 유지)를 위해 개방 상태로 둔다
@@ -381,6 +381,11 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.goto(URL); await page.waitForTimeout(400);
   const old = await page.evaluate(() => ({ res: game.resources, pets: game.pets.map(p => [p.id, p.workBuildingId, p.energy, p.appearance]), eggs: game.eggs.length, looks: game.discoveredLooks, state: petStateLabel(game.pets[0]) }));
   check('12 v0.1 저장 데이터 그대로 불러오기', old.res.wood === 5 && old.pets[0][1] === 'b3' && old.pets[1][3] === '특별 무늬 2' && old.eggs === 1 && old.looks.length === 1 && old.state === '작업 중', JSON.stringify(old));
+  const renamed = await page.evaluate(() => ({ pets: game.pets.map(p => p.name), egg: game.eggs[0].result.name, now: [SPECIES.sproutbun.name, SPECIES.pebblelamb.name, SPECIES.dewotter.name],
+    legacyOk: Object.entries(LEGACY_SPECIES_NAMES).every(([id, names]) => SPECIES[id] && names.length > 0 && !names.includes(SPECIES[id].name)),
+    kept: currentPetName('sproutbun', '내가 지은 이름') }));
+  check('12 예전 저장의 옛 종족 이름(새싹토끼·몽돌양·이슬수달)이 지금 이름으로 바뀜(펫·알)', renamed.pets[0] === renamed.now[0] && renamed.pets[1] === renamed.now[1] && renamed.egg === renamed.now[2] && !renamed.pets.concat(renamed.egg).some(n => ['새싹토끼', '몽돌양', '이슬수달'].includes(n)) && renamed.legacyOk, JSON.stringify(renamed));
+  check('12 옛 종족 이름이 아닌 이름은 그대로 유지', renamed.kept === '내가 지은 이름');
   check('12 지역 정보가 없는 예전 저장은 초원만 개방된 상태로 불러옴', await page.evaluate(() => JSON.stringify(game.unlockedRegions) === '["meadow"]' && game.resources.wood === 5));
   await ctx.close();
   // 숲은 이미 열었지만 선물을 받은 기록이 없는 저장(숲 종족 추가 이전 저장) → 열 때 선물 지급, 한 번만
