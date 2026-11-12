@@ -125,6 +125,38 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.selectOption('#workSelect', cap); await page.click('#assignButton');
   check('5 작업장 정원(2) 초과 배치 거부', await page.evaluate(() => game.pets[3].workBuildingId === null));
 
+  // ---------- 5-2. 시설 업그레이드 (벌목장·채굴장으로 검사. 농장은 뒤 검사가 Lv.1 기준이라 건드리지 않는다) ----------
+  const lumberId = await page.evaluate(() => { game.resources = { wood: 12, stone: 9, plant: 30, ore: 0 }; activeTab = 'village'; renderAll(); return getBuilding('lumber').id; });
+  const upSel = `[data-upgrade="${lumberId}"]`;
+  check('5-2 업그레이드 비용 표시(건설 비용의 2배)', (await page.textContent('#panelContent')).includes('Lv.2 비용: 🪵 12 · 🪨 10'));
+  check('5-2 자원이 부족하면 업그레이드 버튼 비활성', await page.isDisabled(upSel));
+  check('5-2 자원이 부족하면 직접 호출해도 거부', await page.evaluate((id) => { upgradeBuilding(id); return getBuildingById(id).level === 1 && game.resources.wood === 12 && game.resources.stone === 9; }, lumberId));
+  check('5-2 기본 시설(광장·교배장)에는 업그레이드 버튼 없음', await page.evaluate(() => !canUpgrade(getBuilding('plaza')) && !canUpgrade(getBuilding('nursery')) && document.querySelectorAll('[data-upgrade]').length === 4));
+  await page.evaluate(() => { game.resources = { wood: 100, stone: 100, plant: 30, ore: 0 }; renderAll(); });
+  await page.click(upSel);
+  check('5-2 업그레이드 → 레벨 2, 자원 차감(목재 -12, 돌 -10)', await page.evaluate((id) => getBuildingById(id).level === 2 && game.resources.wood === 88 && game.resources.stone === 90, lumberId), await page.evaluate(() => JSON.stringify(game.resources)));
+  check('5-2 카드에 새 레벨과 생산량 표시', (await page.textContent('#panelContent')).includes('Lv.2/3 · 생산량 ×2'));
+  const upYield = await page.evaluate(() => {
+    upgradeBuilding(getBuilding('quarry').id);                          // 채굴장 Lv.2 (목재 20, 돌 16)
+    const out = { quarryLevel: getBuilding('quarry').level };
+    for (const type of ['lumber', 'quarry']) {
+      const pet = makePet('sproutbun', ['sturdy']); game.pets.push(pet); pet.workBuildingId = getBuilding(type).id;   // 비적성 펫: 1회당 정확히 레벨만큼
+      const before = { ...game.resources }; simulatePetSeconds(pet, 600);
+      out[type] = Object.fromEntries(Object.keys(RESOURCES).map(k => [k, game.resources[k] - before[k]])); out[type].energy = pet.energy;
+      game.pets.pop();
+    }
+    return out;
+  });
+  check('5-2 Lv.2 벌목장: 10분 목재 20(Lv.1의 2배), 에너지 소모는 그대로', upYield.lumber.wood === 20 && upYield.lumber.energy === 90, JSON.stringify(upYield.lumber));
+  check('5-2 Lv.2 채굴장: 돌 20 + 광석 5(부산물도 2배)', upYield.quarryLevel === 2 && upYield.quarry.stone === 20 && upYield.quarry.ore === 5, JSON.stringify(upYield.quarry));
+  await page.evaluate(() => { game.resources.wood = 100; game.resources.stone = 100; activeTab = 'village'; renderAll(); });
+  check('5-2 Lv.3 비용 표시(건설 비용의 4배)', (await page.textContent('#panelContent')).includes('Lv.3 비용: 🪵 24 · 🪨 20'));
+  await page.click(upSel);
+  check('5-2 레벨 3 도달, 자원 차감(목재 -24, 돌 -20)', await page.evaluate((id) => getBuildingById(id).level === 3 && game.resources.wood === 76 && game.resources.stone === 80, lumberId));
+  check('5-2 최대 레벨에서는 업그레이드 버튼이 없고 "최대 레벨" 표시', await page.evaluate((sel) => !document.querySelector(sel), upSel) && (await page.textContent('#panelContent')).includes('최대 레벨'));
+  check('5-2 최대 레벨에서 직접 호출해도 변화 없음', await page.evaluate((id) => { upgradeBuilding(id); return getBuildingById(id).level === 3 && game.resources.wood === 76; }, lumberId));
+  check('5-2 저장 데이터의 비정상 레벨(99)은 최대 레벨로 보정', await page.evaluate(() => { const copy = JSON.parse(JSON.stringify(game)); copy.buildings.find(b => b.type === 'farm').level = 99; return normalizeGame(copy).buildings.find(b => b.type === 'farm').level === CONFIG.maxBuildingLevel; }));
+
   // ---------- 6. 교배·부화·도감 ----------
   await page.click('[data-tab="breed"]');
   await page.selectOption('#parentB', { index: 3 });
@@ -199,6 +231,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.reload(); await page.waitForTimeout(400);
   const s2 = await snap();
   check('9 새로고침 후 펫·자원·건물·알·도감 유지', JSON.stringify(s1) === JSON.stringify(s2), JSON.stringify(s2).slice(0, 160));
+  check('9 새로고침 후 시설 레벨 유지(벌목장 3, 채굴장 2, 농장 1)', await page.evaluate(() => getBuilding('lumber').level === 3 && getBuilding('quarry').level === 2 && getBuilding('farm').level === 1));
   check('9 저장 데이터 버전 필드 유지', s2.v === 1 && await page.evaluate(() => JSON.parse(localStorage.getItem(CONFIG.saveKey)).version === 1));
 
   // ---------- 10. 오프라인 진행 (게임을 끄고 1시간 뒤 다시 열기) ----------

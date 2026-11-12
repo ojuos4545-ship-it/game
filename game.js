@@ -24,6 +24,10 @@ const CONFIG = {
   affinityMultiplier: 1.35, // 건물과 속성이 맞을 때 생산량 배수
   quarryOrePerProduction: 0.25, // 채굴장 부산물(광석)
 
+  // 시설 업그레이드: 생산 시설만 가능하고, 레벨만큼 생산량이 곱해진다(Lv.2 = 2배, Lv.3 = 3배).
+  maxBuildingLevel: 3,
+  upgradeCostMultipliers: { 2: 2, 3: 4 }, // 그 레벨로 올리는 비용 = 건설 비용 × 이 값
+
   // 특성 효과
   healthyEnergyBonus: 20,
   sturdyDrainReduction: 1,
@@ -229,7 +233,7 @@ function normalizeGame(saved) {
   Object.keys(RESOURCES).forEach(key => { saved.resources[key] = Math.max(0, finite(saved.resources[key], 0)); });
 
   saved.buildings = saved.buildings.filter(b => b && BUILDING_TYPES[b.type]).map(b => ({
-    ...b, id: b.id || uid('building'), level: Math.max(1, Math.floor(Number(b.level)) || 1),
+    ...b, id: b.id || uid('building'), level: Math.min(CONFIG.maxBuildingLevel, Math.max(1, Math.floor(Number(b.level)) || 1)),
     x: finite(b.x, .5), y: finite(b.y, .5)
   }));
   const workplaceIds = new Set(saved.buildings.filter(b => BUILDING_TYPES[b.type].output).map(b => b.id));
@@ -333,6 +337,18 @@ function assignedCount(buildingId) { return game.pets.filter(p => p.workBuilding
 function traitHas(pet, trait) { return pet.traits.includes(trait); }
 function canAfford(cost) { return Object.entries(cost).every(([key, value]) => game.resources[key] >= value); }
 function pay(cost) { Object.entries(cost).forEach(([key, value]) => { game.resources[key] -= value; }); }
+function costLabel(cost) { return Object.entries(cost).map(([key, value]) => `${RESOURCES[key].icon} ${value}`).join(' · '); }
+// 업그레이드는 생산 시설만, 최대 레벨 전까지, 비용 배수가 설정된 레벨로만 가능하다.
+function canUpgrade(building) {
+  return Boolean(BUILDING_TYPES[building.type].output) && building.level < CONFIG.maxBuildingLevel
+    && CONFIG.upgradeCostMultipliers[building.level + 1] > 0;
+}
+function upgradeCost(building) {
+  const multiplier = CONFIG.upgradeCostMultipliers[building.level + 1];
+  const cost = {};
+  Object.entries(BUILDING_TYPES[building.type].cost).forEach(([key, value]) => { cost[key] = Math.ceil(value * multiplier); });
+  return cost;
+}
 function getWorkBuilding(pet) {
   const building = pet.workBuildingId ? getBuildingById(pet.workBuildingId) : null;
   return building && BUILDING_TYPES[building.type].output ? building : null;
@@ -367,7 +383,7 @@ function simulatePetSeconds(pet, seconds) {
         pet.yieldProgress = rawYield - amount;
         game.resources[type] += amount;
         if (building.type === 'quarry') {
-          pet.oreProgress = (pet.oreProgress || 0) + CONFIG.quarryOrePerProduction;
+          pet.oreProgress = (pet.oreProgress || 0) + CONFIG.quarryOrePerProduction * building.level;
           const ore = Math.floor(pet.oreProgress);
           pet.oreProgress -= ore;
           game.resources.ore += ore;
@@ -477,10 +493,19 @@ function renderVillageTab() {
   const buildings = game.buildings.map(building => {
     const meta = BUILDING_TYPES[building.type];
     const workers = assignedCount(building.id);
-    return `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}<br>${meta.capacity ? `작업 펫 ${workers}/${meta.capacity}마리` : '마을 주요 시설'}</small><div class="build-cost">Lv.${building.level}</div>${meta.capacity ? `<button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>` : '<button class="btn secondary" disabled>기본 시설</button>'}</div>`;
+    if (!meta.output) return `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}<br>마을 주요 시설</small><div class="build-cost">Lv.${building.level}</div><button class="btn secondary" disabled>기본 시설</button></div>`;
+    let upgradeLine = '최대 레벨';
+    let upgradeButton = '<button class="btn secondary" style="margin-top:5px" disabled>최대 레벨</button>';
+    if (canUpgrade(building)) {
+      const cost = upgradeCost(building);
+      const affordable = canAfford(cost);
+      upgradeLine = `Lv.${building.level + 1} 비용: ${costLabel(cost)}`;
+      upgradeButton = `<button class="btn ${affordable ? 'primary' : 'secondary'}" style="margin-top:5px" data-upgrade="${building.id}" ${affordable ? '' : 'disabled'}>업그레이드</button>`;
+    }
+    return `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}<br>작업 펫 ${workers}/${meta.capacity}마리</small><div class="build-cost">Lv.${building.level}/${CONFIG.maxBuildingLevel} · 생산량 ×${building.level}<br>${upgradeLine}</div><button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>${upgradeButton}</div>`;
   }).join('');
   const available = Object.entries(BUILDING_TYPES).filter(([type, meta]) => meta.output && !getBuilding(type));
-  const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${Object.entries(meta.cost).map(([k,v]) => `${RESOURCES[k].icon} ${v}`).join(' · ')}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
+  const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${costLabel(meta.cost)}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
   return `<h2 class="section-title">마을 관리</h2><p class="section-description">작업장을 세우고 펫을 배치해 마을의 기반을 넓혀보세요.</p>
     <div class="subheading"><span>건설된 시설</span><span class="count-pill">${game.buildings.length}개</span></div><div class="build-grid">${buildings}</div>
     <div class="subheading"><span>새 시설 건설</span><span class="count-pill">자원 사용</span></div><div class="build-grid">${buildCards || '<div class="empty-state">모든 기본 생산 시설을 건설했어요.</div>'}</div>
@@ -575,6 +600,13 @@ function refreshLive() {
     button.classList.toggle('primary', affordable);
     button.classList.toggle('secondary', !affordable);
   });
+  panel.querySelectorAll('[data-upgrade]').forEach(button => {
+    const building = getBuildingById(button.dataset.upgrade);
+    const affordable = Boolean(building) && canUpgrade(building) && canAfford(upgradeCost(building));
+    button.disabled = !affordable;
+    button.classList.toggle('primary', affordable);
+    button.classList.toggle('secondary', !affordable);
+  });
 }
 
 function selectPet(petId) {
@@ -588,6 +620,7 @@ function bindPanelEvents() {
     renderAll();
   }));
   document.querySelectorAll('[data-build]').forEach(button => button.addEventListener('click', () => build(button.dataset.build)));
+  document.querySelectorAll('[data-upgrade]').forEach(button => button.addEventListener('click', () => upgradeBuilding(button.dataset.upgrade)));
   document.querySelectorAll('[data-focus-building]').forEach(button => button.addEventListener('click', () => {
     const building = getBuildingById(button.dataset.focusBuilding);
     if (!building) return;
@@ -625,6 +658,18 @@ function build(type) {
   game.buildings.push({ id: uid('building'), type, x, y, level: 1 });
   game.message = `${meta.name}을(를) 건설했어요.`;
   saveGame(); renderAll(); toast(`${meta.name} 건설 완료!`);
+}
+
+function upgradeBuilding(buildingId) {
+  const building = getBuildingById(buildingId);
+  if (!building || !canUpgrade(building)) return;
+  const cost = upgradeCost(building);
+  if (!canAfford(cost)) return toast('자원이 부족해요.');
+  pay(cost);
+  building.level += 1;
+  const name = BUILDING_TYPES[building.type].name;
+  game.message = `${name}이(가) Lv.${building.level}이 되었어요.`;
+  saveGame(); renderAll(); toast(`${name} Lv.${building.level} 업그레이드 완료!`);
 }
 
 function assignSelectedPet() {
