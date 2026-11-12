@@ -226,8 +226,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.click('[data-tab="dex"]');
   check('6 도감 탭 표시', (await page.textContent('#panelContent')).includes(`${hatch.dex} / 6`));
   const dexLocked = await page.evaluate(() => ({ total: document.querySelector('.stat strong').textContent, meadow: document.querySelector('[data-dex-region="meadow"]').textContent, forest: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent) }));
-  check('6 도감: 전체 12종 기준 표시 + 지역별 묶음(초원 n/6, 숲 0/6)', dexLocked.total === `${hatch.dex} / 12` && dexLocked.meadow.includes('초원') && dexLocked.meadow.includes(`${hatch.dex} / 6`) && dexLocked.forest.includes('숲') && dexLocked.forest.includes('0 / 6'), JSON.stringify(dexLocked));
-  check('6 도감: 숲 미개방이면 숲 종족 6칸 모두 "지역 미개방"', dexLocked.hints.filter(h => h === '지역 미개방').length === 6);
+  check('6 도감: 전체 15종 기준 표시 + 지역별 묶음(초원 n/6, 숲 0/9)', dexLocked.total === `${hatch.dex} / 15` && dexLocked.meadow.includes('초원') && dexLocked.meadow.includes(`${hatch.dex} / 6`) && dexLocked.forest.includes('숲') && dexLocked.forest.includes('0 / 9'), JSON.stringify(dexLocked));
+  check('6 도감: 숲 미개방이면 숲 종족 9칸 모두 "지역 미개방"', dexLocked.hints.filter(h => h === '지역 미개방').length === 9);
   // 교배 통계: 발견 확률·희귀도 가중
   const stats = await page.evaluate(() => {
     const saved = game.discoveredSpecies; game.discoveredSpecies = ['sproutbun', 'pebblelamb'];
@@ -256,8 +256,11 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const speciesOk = Object.values(SPECIES).every(s => REGIONS[s.region] && ELEMENTS[s.element] && RARITIES[s.rarity] && s.name && s.icon);
     const giftsOk = Object.values(REGIONS).every(r => !r.giftSpecies || (SPECIES[r.giftSpecies] && !SPECIES[r.giftSpecies].breedOnly));
     const rulesOk = Object.entries(BREEDING_RULES.speciesPairs).every(([key, list]) => { const ids = key.split('+'); return ids.length === 2 && ids.every(id => SPECIES[id]) && pairKey(ids[0], ids[1]) === key && list.every(e => SPECIES[e.speciesId] && e.weight > 0); });
-    const everyBreedOnlyReachable = Object.keys(SPECIES).filter(id => SPECIES[id].breedOnly).every(id => Object.values(BREEDING_RULES.speciesPairs).some(list => list.some(e => e.speciesId === id)));
-    return speciesOk && giftsOk && rulesOk && everyBreedOnlyReachable && Object.keys(SPECIES).length === 12;
+    const elementRulesOk = Object.entries(BREEDING_RULES.elementPairs).every(([key, list]) => { const ids = key.split('+'); return ids.length === 2 && ids.every(id => ELEMENTS[id]) && pairKey(ids[0], ids[1]) === key && list.every(e => SPECIES[e.speciesId] && e.weight > 0); });
+    const allLists = Object.values(BREEDING_RULES.speciesPairs).concat(Object.values(BREEDING_RULES.elementPairs));
+    const everyBreedOnlyReachable = Object.keys(SPECIES).filter(id => SPECIES[id].breedOnly).every(id => allLists.some(list => list.some(e => e.speciesId === id)));
+    const dualOk = Object.values(SPECIES).every(s => s.element2 === undefined || (ELEMENTS[s.element2] && s.element2 !== s.element));
+    return speciesOk && giftsOk && rulesOk && elementRulesOk && everyBreedOnlyReachable && dualOk && Object.keys(SPECIES).length === 15;
   }));
   const forest = await page.evaluate(() => {
     const realDex = game.discoveredSpecies, realRegions = game.unlockedRegions;
@@ -308,7 +311,50 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
       forestHead: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent), panel: document.querySelector('#panelContent').textContent, canvasOk: (() => { drawVillage(); return true; })() };
   });
   check('6-2 숲 종족 알 부화 → 펫 추가·도감 등록·발견 알림', forestUi.hatched && forestUi.dexUp && forestUi.msg.includes('나북이'), forestUi.msg);
-  check('6-2 도감: 숲 개방 후 숲 1/6, 미발견 조합 전용은 "특별한 부모 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 6') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('나북이') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
+  check('6-2 도감: 숲 개방 후 숲 1/9, 미발견 조합 전용은 "특별한 부모 조합 필요", 복합 속성은 "특별한 속성 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 9') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && forestUi.hints.filter(h => h === '특별한 속성 조합 필요').length === 3 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('나북이') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
+
+  // ---------- 6-3. 복합 속성(속성 2개) ----------
+  const dual = await page.evaluate(() => {
+    const realDex = game.discoveredSpecies, realRegions = game.unlockedRegions;
+    const N = 20000;
+    const run = (x, y) => { const cnt = {}; for (let i = 0; i < N; i++) { const s = pickChildSpecies(makePet(x, ['sturdy']), makePet(y, ['sturdy'])); cnt[s] = (cnt[s] || 0) + 1; } return cnt; };
+    const duals = ['lotusfrog', 'flarefly', 'sandhamster'];
+    const sumDual = (cnt) => duals.reduce((n, id) => n + (cnt[id] || 0), 0);
+    const out = {};
+    game.discoveredSpecies = Object.keys(SPECIES);
+    game.unlockedRegions = ['meadow'];
+    out.locked = sumDual(run('sproutbun', 'dewotter')) + sumDual(run('embergecko', 'sparkchick')) + sumDual(run('pebblelamb', 'breezefox'));
+    game.unlockedRegions = ['meadow', 'forest'];
+    const frog = run('sproutbun', 'dewotter'), frogReverse = run('dewotter', 'sproutbun'), fly = run('embergecko', 'sparkchick'), ham = run('pebblelamb', 'breezefox');
+    out.frog = frog; out.rates = [frog.lotusfrog / N, frogReverse.lotusfrog / N, fly.flarefly / N, ham.sandhamster / N];
+    out.wrongPair = sumDual(run('sproutbun', 'pebblelamb')) + sumDual(run('dewotter', 'embergecko')) + sumDual(run('sproutbun', 'sproutbun'));
+    // 복합 속성 부모: 두 속성 모두 자식 후보에 반영된다(연구리=물·풀 + 불또마=불 → 물·풀·불 종족)
+    out.dualParent = Object.keys(run('lotusfrog', 'embergecko')).sort();
+    out.dualSame = run('lotusfrog', 'lotusfrog').lotusfrog > 0;
+    // 작업 적성: 두 속성 중 하나라도 맞으면 보너스
+    const frogPet = makePet('lotusfrog', ['sturdy']), hamPet = makePet('sandhamster', ['sturdy']), flyPet = makePet('flarefly', ['sturdy']);
+    out.affinity = { frog: ['farm', 'lumber', 'quarry', 'smelter'].filter(t => hasAffinity(frogPet, t)), ham: ['farm', 'lumber', 'quarry', 'smelter'].filter(t => hasAffinity(hamPet, t)), fly: ['farm', 'lumber', 'quarry', 'smelter'].filter(t => hasAffinity(flyPet, t)) };
+    game.pets.push(hamPet); hamPet.workBuildingId = getBuilding('smelter').id; const ore0 = game.resources.ore; simulatePetSeconds(hamPet, 600); out.noBonus = game.resources.ore - ore0;
+    hamPet.energy = 100; hamPet.resting = false; hamPet.productionProgress = 0; hamPet.yieldProgress = 0; hamPet.workBuildingId = getBuilding('smelter').id;
+    game.pets.pop(); game.pets.push(flyPet); flyPet.workBuildingId = getBuilding('smelter').id; const ore1 = game.resources.ore; simulatePetSeconds(flyPet, 600); out.bonus = game.resources.ore - ore1; game.pets.pop();
+    // 화면
+    game.pets.push(frogPet); selectedPetId = frogPet.id; activeTab = 'pets'; renderAll();
+    out.profile = document.querySelector('.pet-profile').textContent; out.card = document.querySelector('.pet-card.selected .pet-detail').textContent;
+    out.option = [...document.querySelectorAll('#workSelect option')].find(o => o.textContent.includes('농장')).textContent;
+    activeTab = 'dex'; renderAll(); out.dex = document.querySelector('#panelContent').textContent; drawVillage();
+    game.pets.pop(); selectedPetId = game.pets[0].id; game.discoveredSpecies = realDex; game.unlockedRegions = realRegions; activeTab = 'pets'; renderAll();
+    out.single = { label: elementLabel(SPECIES.sproutbun), names: elementNames(SPECIES.sproutbun), list: speciesElements(SPECIES.sproutbun) };
+    return out;
+  });
+  check('6-3 숲 개방 전에는 복합 속성 종족이 태어나지 않음(6만 회)', dual.locked === 0, String(dual.locked));
+  check('6-3 속성 조합에서 복합 속성 종족이 ≈17%(풀+물, 불+전기, 땅+바람, 부모 순서 무관)', dual.rates.every(r => Math.abs(r - 1 / 6) < .02) && Object.keys(dual.frog).sort().join() === 'dewotter,lotusfrog,mossbear,sproutbun', dual.rates.map(r => r.toFixed(3)).join(' / '));
+  check('6-3 다른 속성 조합에서는 복합 속성 종족이 나오지 않음(6만 회)', dual.wrongPair === 0, String(dual.wrongPair));
+  check('6-3 복합 속성 부모는 두 속성 모두 자식 후보에 반영', dual.dualParent.join() === 'dewotter,embergecko,mossbear,sproutbun' && dual.dualSame, dual.dualParent.join());
+  check('6-3 작업 적성: 두 속성 중 하나라도 맞으면 적성', dual.affinity.frog.join() === 'farm' && dual.affinity.ham.join() === 'lumber,quarry' && dual.affinity.fly.join() === 'smelter', JSON.stringify(dual.affinity));
+  check('6-3 적성 보너스 실제 생산량: 제련소 10분 비적성 10, 적성(불·전기) 13', dual.noBonus === 10 && dual.bonus === 13, `${dual.noBonus} / ${dual.bonus}`);
+  check('6-3 펫 정보·목록·작업장 선택에 두 속성과 적성 표시', dual.profile.includes('💧 물 · 🌿 풀') && dual.profile.includes('잘하는 일: 농장') && dual.card.includes('물·풀') && dual.option.includes('적성 ★'), dual.profile);
+  check('6-3 도감에 두 속성 표시', dual.dex.includes('물·풀 속성') && dual.dex.includes('불·전기') && dual.dex.includes('땅·바람'));
+  check('6-3 속성 1개 종족은 그대로(표시·목록)', dual.single.label === '🌿 풀' && dual.single.names === '풀' && dual.single.list.join() === 'grass', JSON.stringify(dual.single));
 
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');

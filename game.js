@@ -104,6 +104,7 @@ const RARITIES = {
 };
 
 /* 종족 표. 이름은 모두 임시이며 나중에 한꺼번에 바꿀 예정이다(이름은 이 표에서만 고치면 된다).
+ * element / element2: 속성(ELEMENTS의 ID). element2는 복합 속성 종족만 적는다.
  * region: 소속 지역(REGIONS의 ID). 그 지역을 개방해야 교배로 태어날 수 있다.
  * breedOnly: true면 BREEDING_RULES에 등록된 부모 조합에서만 태어난다(새 종족 발견 추첨과 기본 규칙에서 제외).
  */
@@ -120,7 +121,12 @@ const SPECIES = {
   pineowl: { name: '솔붱이', icon: '🦉', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
   glowhog: { name: '반디치', icon: '🦔', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
   mistdeer: { name: '아슴이', icon: '🦌', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
-  elderturtle: { name: '나북이', icon: '🐢', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' }
+  elderturtle: { name: '나북이', icon: '🐢', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' },
+
+  // 복합 속성(속성 2개) 종족. BREEDING_RULES.elementPairs에 등록된 부모 속성 조합에서 태어난다.
+  lotusfrog: { name: '연구리', icon: '🐸', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
+  flarefly: { name: '화르비', icon: '🦋', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
+  sandhamster: { name: '모래찌', icon: '🐹', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
 };
 
 /* 종족의 예전 이름.
@@ -172,9 +178,9 @@ const REGIONS = {
 /* 교배 조합표.
  * 키는 두 ID를 가나다(알파벳) 순으로 정렬해 '+'로 이은 문자열이다. 예: 'fire+water'
  * 값은 [{ speciesId, weight }] 후보 목록이다.
- * - speciesPairs: 특정 부모 "종족" 조합 전용 결과 (가장 먼저 확인)
- * - elementPairs: 부모 "속성" 조합 결과
- * 표에 없는 조합은 기본 규칙(부모와 같은 속성을 가진 종족 중 하나)으로 처리한다.
+ * - speciesPairs: 특정 부모 "종족" 조합 전용 결과 (가장 먼저 확인. 있으면 이 목록에서만 뽑는다)
+ * - elementPairs: 부모 "속성" 조합에서 추가로 나올 수 있는 종족 (기본 규칙의 후보에 더해진다)
+ * 기본 규칙: 부모와 속성이 하나라도 같은 종족 중 하나(각 weight 1).
  * 새 종족을 SPECIES에 추가한 뒤 여기에 한 줄만 넣으면 전용 조합이 된다.
  * 아직 개방하지 않은 지역의 종족은 후보에서 자동으로 빠진다.
  * weight는 나올 비율이다. 아래 두 줄은 전용 종족 1 : 부모 종족 2 : 2 → 전용 종족이 약 20%.
@@ -184,8 +190,11 @@ const BREEDING_RULES = {
     'breezefox+dewotter': [{ speciesId: 'mistdeer', weight: 1 }, { speciesId: 'dewotter', weight: 2 }, { speciesId: 'breezefox', weight: 2 }],
     'mossbear+pebblelamb': [{ speciesId: 'elderturtle', weight: 1 }, { speciesId: 'mossbear', weight: 2 }, { speciesId: 'pebblelamb', weight: 2 }]
   },
+  // 기본 후보가 3~4종(weight 합 3~4)이므로 아래 값이면 복합 속성 종족이 약 17%로 나온다.
   elementPairs: {
-    // 예시: 'fire+water': [{ speciesId: 'steamtoad', weight: 3 }, { speciesId: 'embergecko', weight: 1 }]
+    'grass+water': [{ speciesId: 'lotusfrog', weight: 0.6 }],
+    'electric+fire': [{ speciesId: 'flarefly', weight: 0.6 }],
+    'earth+wind': [{ speciesId: 'sandhamster', weight: 0.8 }]
   }
 };
 
@@ -744,7 +753,8 @@ function renderDexTab() {
     const cards = ids.map(id => {
       const species = SPECIES[id];
       const found = game.discoveredSpecies.includes(id);
-      const hint = !open ? '지역 미개방' : species.breedOnly ? '특별한 부모 조합 필요' : '발견 조건 미확인';
+      const byElements = Object.values(BREEDING_RULES.elementPairs).some(list => list.some(entry => entry.speciesId === id));
+      const hint = !open ? '지역 미개방' : !species.breedOnly ? '발견 조건 미확인' : byElements ? '특별한 속성 조합 필요' : '특별한 부모 조합 필요';
       return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${elementNames(species)} · ${RARITIES[species.rarity].label}${speciesLooks(id).length ? ` · ✦${speciesLooks(id).length}` : ''}` : hint}</small></div>`;
     }).join('');
     return `<div class="subheading" data-dex-region="${regionId}"><span>${open ? region.icon : '🌫️'} ${region.name}</span><span class="count-pill">${foundCount} / ${ids.length}</span></div><div class="dex-grid">${cards}</div>`;
@@ -982,14 +992,22 @@ function pickChildSpecies(parentA, parentB) {
   if (undiscovered.length && Math.random() < discoveryChance) {
     return weightedPick(undiscovered.map(id => ({ id, weight: RARITIES[SPECIES[id].rarity].discoveryWeight })));
   }
-  // 조합표에 전용 결과가 있으면 그것을 쓴다(종족 조합 → 속성 조합 순).
-  const table = BREEDING_RULES.speciesPairs[pairKey(parentA.speciesId, parentB.speciesId)] || BREEDING_RULES.elementPairs[pairKey(a.element, b.element)];
+  // 종족 조합표에 전용 결과가 있으면 그것만 쓴다.
+  const table = BREEDING_RULES.speciesPairs[pairKey(parentA.speciesId, parentB.speciesId)];
   const tableEntries = (table || []).filter(entry => SPECIES[entry.speciesId] && available(entry.speciesId)).map(entry => ({ id: entry.speciesId, weight: entry.weight || 1 }));
   if (tableEntries.length) return weightedPick(tableEntries);
-  // 기본 규칙: 부모 중 하나와 같은 속성의 종족(조합 전용 종족은 제외).
+  // 기본 규칙: 부모의 속성 중 하나라도 같은 종족(조합 전용 종족은 제외).
+  const aElements = speciesElements(a), bElements = speciesElements(b);
+  const parentElements = aElements.concat(bElements);
   const normal = Object.entries(SPECIES).filter(([id, species]) => available(id) && !species.breedOnly);
-  const candidates = normal.filter(([, species]) => species.element === a.element || species.element === b.element);
+  const candidates = normal.filter(([, species]) => speciesElements(species).some(id => parentElements.includes(id)));
   const pool = (candidates.length ? candidates : normal).map(([id]) => ({ id, weight: 1 }));
+  // 속성 조합표: 두 부모의 속성 조합에 등록된 종족을 후보에 더한다(복합 속성 종족이 여기서 태어난다).
+  aElements.forEach(x => bElements.forEach(y => {
+    (BREEDING_RULES.elementPairs[pairKey(x, y)] || []).forEach(entry => {
+      if (SPECIES[entry.speciesId] && available(entry.speciesId) && !pool.some(item => item.id === entry.speciesId)) pool.push({ id: entry.speciesId, weight: entry.weight || 1 });
+    });
+  }));
   if (parentA.speciesId === parentB.speciesId) pool.push({ id: parentA.speciesId, weight: CONFIG.sameSpeciesExtraWeight });
   return weightedPick(pool);
 }
