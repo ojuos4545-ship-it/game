@@ -235,6 +235,18 @@ function formatTime(seconds) {
   const r = s % 60;
   return m > 0 ? `${m}분 ${String(r).padStart(2, '0')}초` : `${r}초`;
 }
+/* 낱말 끝 글자에 받침이 있는지 보고 알맞은 조사를 붙인다.
+ * 예: withParticle('몽양이', '이', '가') → '몽양이가', withParticle('제련소', '을', '를') → '제련소를'
+ * 끝 글자가 한글이 아니면(영어·숫자·기호) 고를 수 없으므로 '이(가)'처럼 둘 다 보여 준다.
+ */
+function withParticle(word, consonantForm, vowelForm) {
+  const text = String(word);
+  const code = text.charCodeAt(text.length - 1);
+  if (!(code >= 0xAC00 && code <= 0xD7A3)) return consonantForm === '으로' ? `${text}(으)로` : `${text}${consonantForm}(${vowelForm})`;
+  const finalConsonant = (code - 0xAC00) % 28;
+  if (consonantForm === '으로' && finalConsonant === 8) return text + vowelForm; // ㄹ 받침 뒤에는 '로'
+  return text + (finalConsonant ? consonantForm : vowelForm);
+}
 function formatDuration(seconds) {
   const minutes = Math.floor(seconds / 60);
   const h = Math.floor(minutes / 60);
@@ -526,11 +538,11 @@ function hatchEgg(egg) {
   if (!game.discoveredSpecies.includes(baby.speciesId)) {
     game.discoveredSpecies.push(baby.speciesId);
     game.totalDiscoveries = game.discoveredSpecies.length;
-    game.message = `새로운 종족 ${speciesName}을(를) 발견했어요!`;
+    game.message = `새로운 종족 ${withParticle(speciesName, '을', '를')} 발견했어요!`;
     toast(`새 종족 발견: ${speciesName}!`);
   } else {
-    game.message = `${pet.name}이(가) 마을에 합류했어요.`;
-    toast(`${speciesName}이(가) 부화했어요.`);
+    game.message = `${withParticle(pet.name, '이', '가')} 마을에 합류했어요.`;
+    toast(`${withParticle(speciesName, '이', '가')} 부화했어요.`);
   }
   if (baby.look) {
     if (!game.discoveredLooks.includes(baby.look)) game.discoveredLooks.push(baby.look);
@@ -591,8 +603,8 @@ function grantPendingRegionGifts() {
       game.discoveredSpecies.push(speciesId);
       game.totalDiscoveries = game.discoveredSpecies.length;
     }
-    game.message = `${REGIONS[regionId].name}에서 ${pet.name}이(가) 마을로 찾아왔어요.`;
-    toast(`${REGIONS[regionId].name}의 새 친구 ${pet.name}이(가) 합류했어요!`);
+    game.message = `${REGIONS[regionId].name}에서 ${withParticle(pet.name, '이', '가')} 마을로 찾아왔어요.`;
+    toast(`${REGIONS[regionId].name}의 새 친구 ${withParticle(pet.name, '이', '가')} 합류했어요!`);
     granted = true;
   });
   return granted;
@@ -630,13 +642,19 @@ function elementNames(species) { return speciesElements(species).map(id => ELEME
 function elementLabel(species) { return speciesElements(species).map(id => `${ELEMENTS[id].icon} ${ELEMENTS[id].label}`).join(' · '); }
 function speciesLooks(speciesId) { return game.discoveredLooksBySpecies[speciesId] || []; }
 function traitNames(pet) { return pet.traits.map(t => TRAITS[t].name).join(' / ') || '특성 없음'; }
-function parentOptionLabel(pet) { return `${pet.name} · ${traitNames(pet)} · 에너지 ${Math.round(pet.energy)}`; }
+// 이름을 바꾼 펫은 이름만으로 종족을 알 수 없으므로 종족 이름을 함께 보여 준다(이름이 종족 이름 그대로면 빈 문자열).
+function renamedSpeciesName(pet) { const speciesName = SPECIES[pet.speciesId].name; return pet.name === speciesName ? '' : speciesName; }
+// 교배는 부모의 속성 조합이 중요하므로 부모 목록에 종족과 속성을 함께 적는다.
+function parentOptionLabel(pet) {
+  const speciesName = renamedSpeciesName(pet);
+  return `${pet.name}${speciesName ? `(${speciesName})` : ''} · ${elementNames(SPECIES[pet.speciesId])} · ${traitNames(pet)} · 에너지 ${Math.round(pet.energy)}`;
+}
 
 function renderPetCard(pet) {
   const species = SPECIES[pet.speciesId];
   const selected = selectedPetId === pet.id ? 'selected' : '';
   return `<button class="pet-card ${selected}" data-pet-id="${pet.id}">
-    <span class="pet-avatar">${species.icon}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${elementNames(species)} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
+    <span class="pet-avatar">${species.icon}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementNames(species)} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
   </button>`;
 }
 
@@ -712,7 +730,7 @@ function renderSelectedPetPanel() {
   const canRelease = game.pets.length > CONFIG.minPets;
   const nameValue = ui.pendingName && ui.pendingName.petId === pet.id ? ui.pendingName.value : pet.name;
   return `<div class="subheading"><span>선택한 펫 관리</span><span class="count-pill" data-live-energy-text="${pet.id}">${energyText(pet)}</span></div>
-    <div class="pet-profile"><div class="pet-profile-head"><span class="pet-avatar">${species.icon}</span><div><strong>${escapeHtml(pet.name)}</strong><small>${elementLabel(species)} · ${RARITIES[species.rarity].label} · <span data-live-state="${pet.id}">${petStateLabel(pet)}</span></small></div></div>
+    <div class="pet-profile"><div class="pet-profile-head"><span class="pet-avatar">${species.icon}</span><div><strong>${escapeHtml(pet.name)}</strong><small>${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementLabel(species)} · ${RARITIES[species.rarity].label} · <span data-live-state="${pet.id}">${petStateLabel(pet)}</span></small></div></div>
       <div class="pet-profile-row">${traitChips}</div>
       <div class="pet-profile-row"><small>잘하는 일: ${goodAt}${pet.appearance ? ` · 희귀 외형: ${escapeHtml(pet.appearance)} ✦` : ''}</small></div></div>
     <label class="field-label" for="workSelect">작업장 배치</label><select class="select" id="workSelect"><option value="">자유 생활</option>${buildings.map(b => `<option value="${b.id}" ${chosen === b.id ? 'selected' : ''}>${BUILDING_TYPES[b.type].name} (${assignedCount(b.id)}/${BUILDING_TYPES[b.type].capacity})${hasAffinity(pet, b.type) ? ' · 적성 ★' : ''}</option>`).join('')}</select>
@@ -844,7 +862,7 @@ function bindPanelEvents() {
     activeTab = 'pets';
     if (candidate) { selectPet(candidate.id); ui.pendingWork = { petId: candidate.id, value: building.id }; }
     renderAll();
-    toast(`${BUILDING_TYPES[building.type].name}을(를) 골라 두었어요. '배치 적용'을 누르면 배치됩니다.`);
+    toast(`${withParticle(BUILDING_TYPES[building.type].name, '을', '를')} 골라 두었어요. '배치 적용'을 누르면 배치됩니다.`);
   }));
   const workSelect = $('#workSelect');
   if (workSelect) workSelect.addEventListener('change', () => { ui.pendingWork = { petId: selectedPetId, value: workSelect.value }; });
@@ -881,7 +899,7 @@ function build(type) {
   const positions = { farm: [.28, .68], lumber: [.75, .73], quarry: [.18, .37], smelter: [.83, .52] };
   const [x, y] = positions[type] || [.5, .5];
   game.buildings.push({ id: uid('building'), type, x, y, level: 1 });
-  game.message = `${meta.name}을(를) 건설했어요.`;
+  game.message = `${withParticle(meta.name, '을', '를')} 건설했어요.`;
   saveGame(); renderAll(); toast(`${meta.name} 건설 완료!`);
 }
 
@@ -893,7 +911,7 @@ function upgradeBuilding(buildingId) {
   pay(cost);
   building.level += 1;
   const name = BUILDING_TYPES[building.type].name;
-  game.message = `${name}이(가) Lv.${building.level}이 되었어요.`;
+  game.message = `${withParticle(name, '을', '를')} Lv.${building.level}까지 업그레이드했어요.`;
   saveGame(); renderAll(); toast(`${name} Lv.${building.level} 업그레이드 완료!`);
 }
 
@@ -915,8 +933,8 @@ function assignSelectedPet() {
   pet.productionProgress = 0;
   pet.resting = Boolean(targetId && pet.energy <= pet.maxEnergy * CONFIG.pauseEnergyRatio);
   ui.pendingWork = null;
-  game.message = !targetId ? `${pet.name}이(가) 자유 생활을 시작했어요.`
-    : pet.resting ? `${pet.name}이(가) 배치됐어요. 에너지를 회복한 뒤 작업을 시작해요.` : `${pet.name}이(가) 작업을 시작했어요.`;
+  game.message = !targetId ? `${withParticle(pet.name, '이', '가')} 자유 생활을 시작했어요.`
+    : pet.resting ? `${withParticle(pet.name, '이', '가')} 배치됐어요. 에너지를 회복한 뒤 작업을 시작해요.` : `${withParticle(pet.name, '이', '가')} 작업을 시작했어요.`;
   saveGame(); renderAll(); toast(game.message);
 }
 
@@ -947,7 +965,7 @@ function strokeSelectedPet() {
   const pet = getSelectedPet();
   if (!pet) return;
   startPetEffect(pet.id, 'stroke', CONFIG.strokeEffectSeconds);
-  game.message = `${pet.name}이(가) 기분 좋아해요.`;
+  game.message = `${withParticle(pet.name, '이', '가')} 기분 좋아해요.`;
   refreshLive();
 }
 function playWithSelectedPet() {
@@ -957,7 +975,7 @@ function playWithSelectedPet() {
   if (pet.energy < CONFIG.playEnergyCost) return toast('에너지가 부족해요.');
   pet.energy = clamp(pet.energy - CONFIG.playEnergyCost, 0, pet.maxEnergy);
   startPetEffect(pet.id, 'play', CONFIG.playEffectSeconds);
-  game.message = `${pet.name}이(가) 신나게 뛰어놀아요.`;
+  game.message = `${withParticle(pet.name, '이', '가')} 신나게 뛰어놀아요.`;
   saveGame(); refreshLive();
 }
 
@@ -969,7 +987,7 @@ function renameSelectedPet() {
   if (name === pet.name) return toast('지금 이름과 같아요.');
   pet.name = name;
   ui.pendingName = null;
-  game.message = `이름을 ${name}(으)로 바꿨어요.`;
+  game.message = `이름을 ${withParticle(name, '으로', '로')} 바꿨어요.`;
   saveGame(); renderAll(); toast(game.message);
 }
 
@@ -978,12 +996,12 @@ function releaseSelectedPet() {
   const pet = getSelectedPet();
   if (!pet) return;
   if (game.pets.length <= CONFIG.minPets) return toast(`펫은 최소 ${CONFIG.minPets}마리가 필요해요.`);
-  if (!confirm(`${pet.name}을(를) 초원으로 돌려보낼까요? 되돌릴 수 없어요. (도감 기록은 유지됩니다)`)) return;
+  if (!confirm(`${withParticle(pet.name, '을', '를')} 초원으로 돌려보낼까요? 되돌릴 수 없어요. (도감 기록은 유지됩니다)`)) return;
   game.pets = game.pets.filter(p => p.id !== pet.id);
   ui.pendingWork = null;
   selectedPetId = game.pets[0]?.id || null;
   grantPendingRegionGifts(); // 자리가 없어 미뤄 둔 지역 선물이 있으면 지금 지급한다.
-  game.message = `${pet.name}이(가) 초원으로 돌아갔어요.`;
+  game.message = `${withParticle(pet.name, '이', '가')} 초원으로 돌아갔어요.`;
   saveGame(); renderAll(); toast(game.message);
 }
 

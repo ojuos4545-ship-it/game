@@ -431,6 +431,32 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('7-2 빈 이름 거부, 최대 10자로 자름', nameRules.empty === '뭉치<b>' && nameRules.long === '가나다라마바사아자차' && nameRules.long.length === nameRules.max && nameRules.attr === nameRules.max, JSON.stringify(nameRules));
   await page.click('[data-tab="breed"]');
   check('7-2 바꾼 이름이 교배 탭 부모 목록에도 표시', (await page.textContent('#parentA')).includes('가나다라마바사아자차'));
+  // 이름을 바꾼 펫은 종족 이름을 함께 표시 (이름만으로는 종족을 알 수 없으므로)
+  const speciesShown = await page.evaluate(() => {
+    const pet = game.pets[0], other = game.pets[1]; const species = SPECIES[pet.speciesId];
+    const option = document.querySelector(`[data-parent-option="${pet.id}"]`).textContent;
+    const otherOption = document.querySelector(`[data-parent-option="${other.id}"]`).textContent;
+    selectedPetId = pet.id; activeTab = 'pets'; renderAll();
+    const out = { speciesName: species.name, element: elementNames(species), option, otherOption, otherName: other.name, otherElement: elementNames(SPECIES[other.speciesId]),
+      profile: document.querySelector('.pet-profile-head small').textContent, card: document.querySelector('.pet-card.selected .pet-detail').textContent,
+      otherCard: document.querySelector(`.pet-card[data-pet-id="${other.id}"] .pet-detail`).textContent };
+    selectedPetId = other.id; renderAll(); out.otherProfile = document.querySelector('.pet-profile-head small').textContent;
+    selectedPetId = pet.id; activeTab = 'breed'; renderAll();
+    return out;
+  });
+  check('7-2 이름을 바꾼 펫: 펫 정보·목록·교배 부모 목록에 종족 이름 표시', speciesShown.profile.startsWith(speciesShown.speciesName + ' · ') && speciesShown.card.startsWith(speciesShown.speciesName + ' · ') && speciesShown.option.startsWith(`가나다라마바사아자차(${speciesShown.speciesName}) · ${speciesShown.element} · `), JSON.stringify(speciesShown));
+  check('7-2 이름을 바꾸지 않은 펫: 종족 이름을 두 번 적지 않음', speciesShown.otherCard.startsWith(speciesShown.otherElement + ' · ') && !speciesShown.otherProfile.includes(speciesShown.otherName) && speciesShown.otherOption.startsWith(`${speciesShown.otherName} · ${speciesShown.otherElement} · `), JSON.stringify(speciesShown));
+  // 안내 문구의 조사(이/가, 을/를, 으로/로)
+  const particles = await page.evaluate(() => {
+    const out = { cases: [withParticle('몽양이', '이', '가'), withParticle('도토람', '이', '가'), withParticle('연구리', '을', '를'), withParticle('벌목장', '을', '를'), withParticle('숲', '으로', '로'), withParticle('콩알', '으로', '로'), withParticle('콩이', '으로', '로'), withParticle('Max', '이', '가'), withParticle('뭉치<b>', '으로', '로')] };
+    const pet = game.pets[0]; const realName = pet.name; const realMessage = game.message;
+    pet.name = '콩이'; selectedPetId = pet.id; strokeSelectedPet(); out.vowel = game.message;
+    pet.name = '도토람'; strokeSelectedPet(); out.consonant = game.message;
+    pet.name = realName; petEffects.clear(); game.message = realMessage; refreshLive();
+    return out;
+  });
+  check('7-3 조사: 받침에 따라 이/가·을/를·으로/로를 고름(한글이 아니면 둘 다 표시)', particles.cases.join() === '몽양이가,도토람이,연구리를,벌목장을,숲으로,콩알로,콩이로,Max이(가),뭉치<b>(으)로', particles.cases.join());
+  check('7-3 안내 문구에 조사가 자연스럽게 붙음', particles.vowel === '콩이가 기분 좋아해요.' && particles.consonant === '도토람이 기분 좋아해요.', JSON.stringify([particles.vowel, particles.consonant]));
   // 시설 누르기
   const farmPoint = await page.evaluate(() => { const b = getBuilding('farm'); game.pets.forEach(p => { p.workBuildingId = null; p.x = .5; p.y = .12; p.targetX = .5; p.targetY = .12; }); game.pets[1].workBuildingId = b.id; game.pets[1].energy = 100; game.pets[1].resting = false; const r = canvas.getBoundingClientRect(); return { id: b.id, x: r.left + b.x * r.width, y: r.top + (b.y - .03) * r.height, worker: game.pets[1].name }; });
   await page.mouse.click(farmPoint.x, farmPoint.y);
