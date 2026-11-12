@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#17251d" />
+  <title>Little Haven — 작은 생명들의 마을</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark">LH</div>
+        <div><div class="brand-title">Little Haven</div><div class="brand-subtitle">작은 생명들의 마을</div></div>
+      </div>
+      <div class="resource-strip" id="resourceStrip" aria-label="보유 자원"></div>
+      <div class="top-actions"><span class="save-state" id="saveState">자동 저장</span><button class="icon-button" id="helpButton" title="도움말" aria-label="도움말">?</button></div>
+    </header>
+
+    <main class="main-layout">
+      <section class="world-panel">
+        <div class="world-heading">
+          <div><div class="eyebrow">STARTING AREA · MEADOW</div><h1>초원 마을</h1><p>펫들이 살아가는 모습을 지켜보세요.</p></div>
+          <div class="village-level"><span>마을 발전</span><strong id="villageLevel">1 단계</strong><div class="level-track"><i id="levelProgress"></i></div></div>
+        </div>
+        <div class="world-stage">
+          <canvas id="villageCanvas" width="960" height="600" aria-label="탑다운 초원 마을"></canvas>
+          <div class="canvas-legend"><span><i class="legend-dot pet-dot"></i>펫</span><span><i class="legend-dot work-dot"></i>작업 중</span><span><i class="legend-dot egg-dot"></i>부화 대기</span></div>
+        </div>
+        <div class="world-footer"><span id="worldMessage">평화로운 초원에 새로운 하루가 시작됐어요.</span><span id="clockLabel">현실 시간 연동</span></div>
+      </section>
+
+      <aside class="side-panel">
+        <nav class="tabbar" aria-label="게임 메뉴">
+          <button class="tab active" data-tab="village">마을</button>
+          <button class="tab" data-tab="pets">펫</button>
+          <button class="tab" data-tab="breed">교배</button>
+          <button class="tab" data-tab="dex">도감</button>
+        </nav>
+        <div class="panel-content" id="panelContent"></div>
+      </aside>
+    </main>
+
+    <footer class="statusbar"><span>EARLY PLAYABLE BUILD · v0.2</span><span>저장 데이터는 현재 브라우저에 보관됩니다.</span><button id="resetButton" class="text-button">초기화</button></footer>
+  </div>
+
+  <dialog id="helpDialog" class="modal">
+    <div class="modal-head"><h2>Little Haven 시작하기</h2><button class="icon-button" id="closeHelp" aria-label="닫기">×</button></div>
+    <div class="modal-body">
+      <p><b>1. 펫 선택</b> 마을 화면의 펫을 클릭하거나 펫 메뉴에서 개체를 선택해 정보를 확인하세요.</p>
+      <p><b>2. 작업 배치</b> 작업장을 건설한 뒤 펫을 배치하면 자원을 자동으로 생산합니다.</p>
+      <p><b>에너지</b> 작업하면 에너지가 줄고, 부족해지면 펫이 스스로 쉬었다가 다시 일합니다. 먹이를 주면 바로 회복돼요.</p>
+      <p><b>3. 교배</b> 부모 펫 두 마리를 선택해 알을 만들 수 있습니다. 자식의 정체는 부화할 때 공개됩니다.</p>
+      <p><b>4. 도감</b> 새 종족을 발견하면 자동으로 기록됩니다.</p>
+      <p><b>놓아주기</b> 펫이 30마리로 가득 차면 펫 메뉴에서 놓아주어 자리를 만들 수 있습니다.</p>
+      <p class="note">이 버전은 핵심 루프 검증용 시제품입니다. 생산량과 부화 시간은 테스트를 위해 짧게 설정되어 있습니다.</p>
+    </div>
+  </dialog>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="game.js"></script>
+</body>
+</html>
