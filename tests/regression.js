@@ -356,6 +356,33 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-3 도감에 두 속성 표시', dual.dex.includes('물·풀 속성') && dual.dex.includes('불·전기') && dual.dex.includes('땅·바람'));
   check('6-3 속성 1개 종족은 그대로(표시·목록)', dual.single.label === '🌿 풀' && dual.single.names === '풀' && dual.single.list.join() === 'grass', JSON.stringify(dual.single));
 
+  // ---------- 6-4. 마을 단계 기준·그림 교체 준비 ----------
+  const balance = await page.evaluate(() => {
+    const maxScore = Object.keys(BUILDING_TYPES).length + Object.keys(SPECIES).length * 2;
+    const t = CONFIG.villageLevelThresholds;
+    const levelFor = (score) => t.reduce((level, threshold, i) => (score >= threshold ? i + 1 : level), 1);
+    // 숲을 열기 전에 얻을 수 있는 최대치(시설 전부 + 초원의 일반 발견 종족)로 숲 개방 조건을 채울 수 있어야 한다.
+    const meadowIds = Object.keys(SPECIES).filter(id => SPECIES[id].region === 'meadow' && !SPECIES[id].breedOnly);
+    const meadowScore = Object.keys(BUILDING_TYPES).length + meadowIds.length * 2;
+    const need = REGIONS.forest.unlock;
+    return { top: t[t.length - 1], maxScore, almost: levelFor(maxScore - 1), full: levelFor(maxScore), ascending: t.every((v, i) => i === 0 || v > t[i - 1]),
+      forestReachable: levelFor(meadowScore) >= need.villageLevel && meadowIds.length >= need.discoveredSpecies, meadowLevel: levelFor(meadowScore) };
+  });
+  check('6-4 마을 4단계 = 모든 시설 + 전체 종족 발견(하나라도 모자라면 3단계)', balance.top === balance.maxScore && balance.full === 4 && balance.almost === 3 && balance.ascending, JSON.stringify(balance));
+  check('6-4 숲 개방 조건은 초원만으로 채울 수 있음(막힘 없음)', balance.forestReachable, JSON.stringify(balance));
+  const sprite = await page.evaluate(async () => {
+    const out = { noneByDefault: Object.keys(sprites).length === 0 };
+    const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8);
+    SPECIES.sproutbun.image = c.toDataURL(); BUILDING_TYPES.farm.image = c.toDataURL(); SPECIES.pebblelamb.image = 'data:image/png;base64,broken';
+    loadSprites(); await new Promise(r => setTimeout(r, 300));
+    out.petReady = !!readySprite('pet:sproutbun'); out.buildingReady = !!readySprite('building:farm'); out.brokenFallsBack = readySprite('pet:pebblelamb') === null; out.missingFallsBack = readySprite('pet:dewotter') === null;
+    try { drawVillage(); out.drawOk = true; } catch (e) { out.drawOk = false; out.error = e.message; }
+    delete SPECIES.sproutbun.image; delete BUILDING_TYPES.farm.image; delete SPECIES.pebblelamb.image; Object.keys(sprites).forEach(k => delete sprites[k]);
+    drawVillage();
+    return out;
+  });
+  check('6-4 그림 파일: 기본은 임시 그림, image를 적은 항목만 그림으로 그리고 실패하면 임시 그림', sprite.noneByDefault && sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.drawOk, JSON.stringify(sprite));
+
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');
   const relBefore = await page.evaluate(() => { selectedPetId = game.pets[game.pets.length - 1].id; renderAll(); return game.pets.length; });

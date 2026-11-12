@@ -66,7 +66,8 @@ const CONFIG = {
   minPets: 2, // 놓아주기를 해도 이 수 아래로는 내려가지 않는다(교배가 불가능해지는 것을 방지).
 
   // 마을 발전: 점수 = 건물 수 + 발견 종족 수 × 2. 배열의 n번째 값 이상이면 n+1단계.
-  villageLevelThresholds: [0, 8, 13, 18],
+  // 4단계 기준(36)은 "모든 시설 6개 + 전체 종족 15종 발견"의 점수다. 종족이나 시설 수를 바꾸면 함께 맞춘다.
+  villageLevelThresholds: [0, 8, 13, 36],
 
   // 화면 연출
   baseMoveSpeed: 0.11,
@@ -102,6 +103,12 @@ const RARITIES = {
   epic: { label: '에픽', discoveryWeight: 1 },
   legendary: { label: '전설', discoveryWeight: 0.5 }
 };
+
+/* 그림 교체 방법 (종족 표 SPECIES와 시설 표 BUILDING_TYPES 공통)
+ * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
+ * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
+ * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG).
+ */
 
 /* 종족 표. 이름은 모두 임시이며 나중에 한꺼번에 바꿀 예정이다(이름은 이 표에서만 고치면 된다).
  * element / element2: 속성(ELEMENTS의 ID). element2는 복합 속성 종족만 적는다.
@@ -1046,6 +1053,22 @@ function toast(message, duration = 2800) {
   setTimeout(() => node.remove(), duration);
 }
 
+// 그림 파일(선택 사항). 표에 image가 적힌 항목만 불러오고, 불러오기에 성공한 것만 쓴다.
+const sprites = {};
+function loadSprites() {
+  const load = (key, path) => {
+    if (!path || sprites[key]) return;
+    const image = new Image();
+    const sprite = sprites[key] = { image, ready: false };
+    image.onload = () => { sprite.ready = true; };
+    image.onerror = () => { sprite.ready = false; console.warn(`그림을 불러오지 못해 임시 그림으로 표시합니다: ${path}`); };
+    image.src = path;
+  };
+  Object.entries(SPECIES).forEach(([id, species]) => load(`pet:${id}`, species.image));
+  Object.entries(BUILDING_TYPES).forEach(([type, meta]) => load(`building:${type}`, meta.image));
+}
+function readySprite(key) { const sprite = sprites[key]; return sprite && sprite.ready ? sprite.image : null; }
+
 // Canvas rendering: simple top-down illustrative placeholder art, independent from game rules.
 function drawVillage() {
   const w = canvas.width, h = canvas.height;
@@ -1090,7 +1113,10 @@ function drawBuilding(building) {
   const x = building.x * canvas.width, y = building.y * canvas.height;
   const info = BUILDING_TYPES[building.type];
   ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,55,16,0,0,Math.PI*2); ctx.fill();
-  if (building.type === 'farm') {
+  const buildingImage = readySprite(`building:${building.type}`);
+  if (buildingImage) {
+    ctx.drawImage(buildingImage, x-60, y-72, 120, 100);
+  } else if (building.type === 'farm') {
     ctx.fillStyle = '#805e3e'; ctx.fillRect(x-42,y-18,84,43);
     for(let i=0;i<4;i++){ctx.strokeStyle='#b38c59';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-34+i*22,y-14);ctx.lineTo(x-34+i*22,y+21);ctx.stroke();}
     ctx.fillStyle='#6eaa5b'; for(let i=0;i<12;i++){ctx.beginPath();ctx.arc(x-31+(i%4)*21,y-7+Math.floor(i/4)*13,4,0,Math.PI*2);ctx.fill();}
@@ -1101,8 +1127,8 @@ function drawBuilding(building) {
     ctx.fillStyle='#f1dfb5';ctx.fillRect(x-8,y-5,16,30);
     if(building.type==='plaza'){ctx.fillStyle='#e8d4a7';ctx.beginPath();ctx.arc(x,y-30,8,0,Math.PI*2);ctx.fill();}
   }
-  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);
-  ctx.font='bold 12px sans-serif';ctx.fillStyle='#18341e';ctx.fillText(info.name,x,y+43);
+  if(!buildingImage){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);}
+  ctx.textAlign='center';ctx.font='bold 12px sans-serif';ctx.fillStyle='#18341e';ctx.fillText(info.name,x,y+43);
   if(info.capacity){ctx.font='10px sans-serif';ctx.fillStyle='#f3f7e8';ctx.fillText(`${assignedCount(building.id)}/${info.capacity}`,x+34,y+37);}
   if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-6,64,58,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 }
@@ -1115,14 +1141,21 @@ function drawPet(pet) {
   // 쓰다듬기·놀아주기 중에는 폴짝폴짝 뛴다.
   const bob=effect ? -Math.abs(Math.sin(effectTime*(effect.type==='play'?11:8)))*(effect.type==='play'?7:5) : resting ? 0 : Math.sin(pet.bob)*2;
   ctx.fillStyle='rgba(30,57,31,.25)';ctx.beginPath();ctx.ellipse(x,y+14,17,7,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.fillStyle=species.color;
-  ctx.beginPath();ctx.arc(x-8,y-10+bob,6,0,Math.PI*2);ctx.arc(x+8,y-10+bob,6,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#263729';
-  if(resting){ctx.fillRect(x-7,y-1,4,1.5);ctx.fillRect(x+3,y-1,4,1.5);} // 감은 눈
-  else{ctx.beginPath();ctx.arc(x-5,y-1+bob,1.8,0,Math.PI*2);ctx.arc(x+5,y-1+bob,1.8,0,Math.PI*2);ctx.fill();}
-  ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(species.icon,x,y-23+bob);
+  const petImage=readySprite(`pet:${pet.speciesId}`);
+  if(petImage){
+    // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다).
+    ctx.save();ctx.translate(x,y-6+bob);ctx.scale(pet.direction<0?-1:1,1);ctx.drawImage(petImage,-24,-24,48,48);ctx.restore();
+  } else {
+    ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle=species.color;
+    ctx.beginPath();ctx.arc(x-8,y-10+bob,6,0,Math.PI*2);ctx.arc(x+8,y-10+bob,6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#263729';
+    if(resting){ctx.fillRect(x-7,y-1,4,1.5);ctx.fillRect(x+3,y-1,4,1.5);} // 감은 눈
+    else{ctx.beginPath();ctx.arc(x-5,y-1+bob,1.8,0,Math.PI*2);ctx.arc(x+5,y-1+bob,1.8,0,Math.PI*2);ctx.fill();}
+    ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(species.icon,x,y-23+bob);
+  }
+  ctx.textAlign='center';
   if(isWorking(pet)){ctx.fillStyle='#f0cf75';ctx.beginPath();ctx.arc(x+15,y-15,4,0,Math.PI*2);ctx.fill();}
   if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+17,y-14+Math.sin(pet.bob*.5)*2);}
   if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-15,y-18+bob);}
@@ -1235,6 +1268,7 @@ function bindGlobalEvents() {
 }
 
 function startGame() {
+  loadSprites();
   game=loadGame();
   grantPendingRegionGifts(); // 이미 개방한 지역의 선물을 아직 못 받은 저장이면 지금 지급한다.
   if(!game.pets.some(p=>p.id===selectedPetId))selectedPetId=game.pets[0]?.id||null;
