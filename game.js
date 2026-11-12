@@ -107,7 +107,8 @@ const RARITIES = {
 /* 그림 교체 방법 (종족 표 SPECIES와 시설 표 BUILDING_TYPES 공통)
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
- * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG).
+ * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG). 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
+ * 펫 15종은 assets/pets 폴더의 그림을 쓴다. 시설은 아직 임시 그림이다.
  */
 
 /* 종족 표. 이름은 모두 임시이며 나중에 한꺼번에 바꿀 예정이다(이름은 이 표에서만 고치면 된다).
@@ -116,24 +117,24 @@ const RARITIES = {
  * breedOnly: true면 BREEDING_RULES에 등록된 부모 조합에서만 태어난다(새 종족 발견 추첨과 기본 규칙에서 제외).
  */
 const SPECIES = {
-  sproutbun: { name: '싹총이', icon: '🐰', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
-  pebblelamb: { name: '몽양이', icon: '🐑', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
-  dewotter: { name: '슬달이', icon: '🦦', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
-  breezefox: { name: '산들우', icon: '🦊', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
-  embergecko: { name: '불또마', icon: '🦎', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
-  sparkchick: { name: '번아리', icon: '🐥', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
+  sproutbun: { name: '싹총이', icon: '🐰', image: 'assets/pets/sproutbun.png', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
+  pebblelamb: { name: '몽양이', icon: '🐑', image: 'assets/pets/pebblelamb.png', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
+  dewotter: { name: '슬달이', icon: '🦦', image: 'assets/pets/dewotter.png', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
+  breezefox: { name: '산들우', icon: '🦊', image: 'assets/pets/breezefox.png', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
+  embergecko: { name: '불또마', icon: '🦎', image: 'assets/pets/embergecko.png', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
+  sparkchick: { name: '번아리', icon: '🐥', image: 'assets/pets/sparkchick.png', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
 
-  mossbear: { name: '끼고미', icon: '🐻', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
-  acornsquirrel: { name: '도토람', icon: '🐿️', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
-  pineowl: { name: '솔붱이', icon: '🦉', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
-  glowhog: { name: '반디치', icon: '🦔', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
-  mistdeer: { name: '아슴이', icon: '🦌', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
-  elderturtle: { name: '나북이', icon: '🐢', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' },
+  mossbear: { name: '끼고미', icon: '🐻', image: 'assets/pets/mossbear.png', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
+  acornsquirrel: { name: '도토람', icon: '🐿️', image: 'assets/pets/acornsquirrel.png', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
+  pineowl: { name: '솔붱이', icon: '🦉', image: 'assets/pets/pineowl.png', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
+  glowhog: { name: '반디치', icon: '🦔', image: 'assets/pets/glowhog.png', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
+  mistdeer: { name: '아슴이', icon: '🦌', image: 'assets/pets/mistdeer.png', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
+  elderturtle: { name: '나북이', icon: '🐢', image: 'assets/pets/elderturtle.png', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' },
 
   // 복합 속성(속성 2개) 종족. BREEDING_RULES.elementPairs에 등록된 부모 속성 조합에서 태어난다.
-  lotusfrog: { name: '연구리', icon: '🐸', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
-  flarefly: { name: '화르비', icon: '🦋', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
-  sandhamster: { name: '모래찌', icon: '🐹', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
+  lotusfrog: { name: '연구리', icon: '🐸', image: 'assets/pets/lotusfrog.png', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
+  flarefly: { name: '화르비', icon: '🦋', image: 'assets/pets/flarefly.png', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
+  sandhamster: { name: '모래찌', icon: '🐹', image: 'assets/pets/sandhamster.png', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
 };
 
 /* 종족의 예전 이름.
@@ -1162,7 +1163,8 @@ function drawPet(pet) {
   const petImage=readySprite(`pet:${pet.speciesId}`);
   if(petImage){
     // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다).
-    ctx.save();ctx.translate(x,y-6+bob);ctx.scale(pet.direction<0?-1:1,1);ctx.drawImage(petImage,-24,-24,48,48);ctx.restore();
+    // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
+    ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(x),Math.round(y-6+bob));ctx.scale(pet.direction<0?-1:1,1);ctx.drawImage(petImage,-24,-24,48,48);ctx.restore();
   } else {
     ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();

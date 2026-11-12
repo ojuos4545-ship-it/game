@@ -370,18 +370,42 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   });
   check('6-4 마을 4단계 = 모든 시설 + 전체 종족 발견(하나라도 모자라면 3단계)', balance.top === balance.maxScore && balance.full === 4 && balance.almost === 3 && balance.ascending, JSON.stringify(balance));
   check('6-4 숲 개방 조건은 초원만으로 채울 수 있음(막힘 없음)', balance.forestReachable, JSON.stringify(balance));
+  // 그림 파일: 펫 15종은 assets/pets의 그림으로, 시설은 아직 임시 그림으로 그린다.
   const sprite = await page.evaluate(async () => {
-    const out = { noneByDefault: Object.keys(sprites).length === 0 };
+    const out = {};
+    const ids = Object.keys(SPECIES);
+    out.allPetsHaveImage = ids.every(id => SPECIES[id].image === `assets/pets/${id}.png`);
+    out.notLoaded = ids.filter(id => !readySprite(`pet:${id}`));
+    out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 48 || img.naturalHeight !== 48; });
+    out.buildingsUsePlaceholder = Object.keys(BUILDING_TYPES).every(type => !BUILDING_TYPES[type].image && readySprite(`building:${type}`) === null);
+    // 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 불러오지 못하면 임시 그림으로 그린다.
+    const real = { bun: SPECIES.sproutbun.image, lamb: SPECIES.pebblelamb.image, otter: SPECIES.dewotter.image };
     const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8);
-    SPECIES.sproutbun.image = c.toDataURL(); BUILDING_TYPES.farm.image = c.toDataURL(); SPECIES.pebblelamb.image = 'data:image/png;base64,broken';
-    loadSprites(); await new Promise(r => setTimeout(r, 300));
+    Object.keys(sprites).forEach(k => delete sprites[k]);
+    SPECIES.sproutbun.image = c.toDataURL(); BUILDING_TYPES.farm.image = c.toDataURL(); SPECIES.pebblelamb.image = 'data:image/png;base64,broken'; delete SPECIES.dewotter.image;
+    loadSprites(); await new Promise(r => setTimeout(r, 400));
     out.petReady = !!readySprite('pet:sproutbun'); out.buildingReady = !!readySprite('building:farm'); out.brokenFallsBack = readySprite('pet:pebblelamb') === null; out.missingFallsBack = readySprite('pet:dewotter') === null;
     try { drawVillage(); out.drawOk = true; } catch (e) { out.drawOk = false; out.error = e.message; }
-    delete SPECIES.sproutbun.image; delete BUILDING_TYPES.farm.image; delete SPECIES.pebblelamb.image; Object.keys(sprites).forEach(k => delete sprites[k]);
+    // 원래 상태로 되돌리고 그림을 다시 불러온다.
+    SPECIES.sproutbun.image = real.bun; SPECIES.pebblelamb.image = real.lamb; SPECIES.dewotter.image = real.otter; delete BUILDING_TYPES.farm.image;
+    Object.keys(sprites).forEach(k => delete sprites[k]);
+    loadSprites(); await new Promise(r => setTimeout(r, 400));
+    out.restored = ids.every(id => readySprite(`pet:${id}`)) && readySprite('building:farm') === null;
     drawVillage();
     return out;
   });
-  check('6-4 그림 파일: 기본은 임시 그림, image를 적은 항목만 그림으로 그리고 실패하면 임시 그림', sprite.noneByDefault && sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.drawOk, JSON.stringify(sprite));
+  check('6-4 펫 그림: 15종 모두 그림 파일(48×48)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
+  check('6-4 시설은 아직 임시 그림', sprite.buildingsUsePlaceholder);
+  check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
+  // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫마다 자기 종족의 그림이 한 번씩 그려져야 한다.
+  // (파일로 직접 열면 브라우저가 캔버스 픽셀 읽기를 막으므로, 그리기 호출을 세는 방식으로 확인한다.)
+  const drawn = await page.evaluate(() => {
+    const original = ctx.drawImage; const used = [];
+    ctx.drawImage = function (image, ...rest) { used.push(image); return original.call(this, image, ...rest); };
+    try { drawVillage(); } finally { ctx.drawImage = original; }
+    return { pets: game.pets.length, draws: used.length, allMatch: game.pets.every(p => used.includes(readySprite(`pet:${p.speciesId}`))) };
+  });
+  check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.draws === drawn.pets && drawn.allMatch, JSON.stringify(drawn));
 
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');
