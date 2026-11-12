@@ -40,6 +40,11 @@ const CONFIG = {
   // 교감
   feedPlantCost: 3,
   feedEnergyGain: 25,
+  playEnergyCost: 5, // 놀아주기 에너지 소모
+  strokeEffectSeconds: 1.6, // 쓰다듬기 연출 시간
+  playEffectSeconds: 4, // 놀아주기 연출 시간
+  playSpeedMultiplier: 2.4, // 놀아주는 동안 이동 속도 배수
+  maxPetNameLength: 10,
 
   // 교배·부화
   breedEnergyCost: 20,
@@ -194,7 +199,9 @@ let animationHandle = null;
 let game;
 let awaySnapshot = null;
 // 화면 조작 중인 값. 패널을 다시 그려도 선택이 풀리지 않도록 따로 기억한다(저장 데이터에는 넣지 않는다).
-const ui = { parentA: null, parentB: null, pendingWork: null };
+const ui = { parentA: null, parentB: null, pendingWork: null, pendingName: null, selectedBuildingId: null };
+// 쓰다듬기·놀아주기 연출 상태(펫 ID → { type, startedAt, until }). 화면 연출용이라 저장하지 않는다.
+const petEffects = new Map();
 
 function uid(prefix = 'id') { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`; }
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -255,7 +262,7 @@ function createInitialGame() {
     version: CONFIG.saveVersion, createdAt: Date.now(), lastSavedAt: Date.now(), lastTickAt: Date.now(),
     resources: { ...CONFIG.startingResources },
     buildings: [plaza, nursery, farm], pets: [p1, p2], eggs: [],
-    discoveredSpecies: ['sproutbun', 'pebblelamb'], discoveredLooks: [],
+    discoveredSpecies: ['sproutbun', 'pebblelamb'], discoveredLooks: [], discoveredLooksBySpecies: {},
     unlockedRegions: defaultOpenRegions(), regionGiftsGiven: [],
     villageLevel: 1, totalDiscoveries: 2, message: '평화로운 초원에 새로운 하루가 시작됐어요.'
   };
@@ -315,6 +322,17 @@ function normalizeGame(saved) {
   saved.pets.forEach(p => discovered.push(p.speciesId)); // 보유 중인 종족은 항상 도감에 있어야 한다.
   saved.discoveredSpecies = discovered.filter((id, i, arr) => SPECIES[id] && arr.indexOf(id) === i);
   saved.discoveredLooks = Array.isArray(saved.discoveredLooks) ? saved.discoveredLooks.filter(look => typeof look === 'string') : [];
+  // 종족별 희귀 외형 기록. 예전 저장에는 없으므로 지금 데리고 있는 펫의 외형으로 채운다.
+  const savedLooks = saved.discoveredLooksBySpecies && typeof saved.discoveredLooksBySpecies === 'object' ? saved.discoveredLooksBySpecies : {};
+  const looksBySpecies = {};
+  const addLook = (speciesId, look) => {
+    if (!SPECIES[speciesId] || typeof look !== 'string' || !look) return;
+    if (!looksBySpecies[speciesId]) looksBySpecies[speciesId] = [];
+    if (!looksBySpecies[speciesId].includes(look)) looksBySpecies[speciesId].push(look);
+  };
+  Object.keys(savedLooks).forEach(id => { if (Array.isArray(savedLooks[id])) savedLooks[id].forEach(look => addLook(id, look)); });
+  saved.pets.forEach(p => addLook(p.speciesId, p.appearance));
+  saved.discoveredLooksBySpecies = looksBySpecies;
   saved.totalDiscoveries = saved.discoveredSpecies.length;
   // 개방한 지역 목록. 예전 저장에는 없으므로 처음부터 열려 있는 지역만 채운다.
   const regions = defaultOpenRegions().concat(Array.isArray(saved.unlockedRegions) ? saved.unlockedRegions : []);
@@ -404,7 +422,8 @@ function getWorkBuilding(pet) {
   const building = pet.workBuildingId ? getBuildingById(pet.workBuildingId) : null;
   return building && BUILDING_TYPES[building.type].output ? building : null;
 }
-function hasAffinity(pet, buildingType) { return BUILDING_TYPES[buildingType].affinityElements.includes(SPECIES[pet.speciesId].element); }
+// 펫의 속성 중 하나라도 시설의 적성 속성과 맞으면 보너스를 받는다.
+function hasAffinity(pet, buildingType) { return speciesElements(SPECIES[pet.speciesId]).some(id => BUILDING_TYPES[buildingType].affinityElements.includes(id)); }
 // 화면 표시(상태 문구·캔버스)와 시뮬레이션이 같은 기준을 쓰도록 한곳에서 판단한다.
 function isWorking(pet) { return Boolean(getWorkBuilding(pet) && !pet.resting && pet.energy > 0); }
 function isResting(pet) { return !isWorking(pet) && (pet.resting || pet.energy < pet.maxEnergy * CONFIG.pauseEnergyRatio); }
@@ -497,7 +516,11 @@ function hatchEgg(egg) {
     game.message = `${pet.name}이(가) 마을에 합류했어요.`;
     toast(`${speciesName}이(가) 부화했어요.`);
   }
-  if (baby.look && !game.discoveredLooks.includes(baby.look)) game.discoveredLooks.push(baby.look);
+  if (baby.look) {
+    if (!game.discoveredLooks.includes(baby.look)) game.discoveredLooks.push(baby.look);
+    const looks = game.discoveredLooksBySpecies[baby.speciesId] || (game.discoveredLooksBySpecies[baby.speciesId] = []);
+    if (!looks.includes(baby.look)) looks.push(baby.look);
+  }
   return true;
 }
 
@@ -585,7 +608,11 @@ function petStateLabel(pet) {
 }
 function energyPercent(pet) { return Math.round((pet.energy / pet.maxEnergy) * 100); }
 function energyText(pet) { return `${Math.round(pet.energy)}/${pet.maxEnergy} 에너지`; }
-function elementLabel(species) { const element = ELEMENTS[species.element]; return `${element.icon} ${element.label}`; }
+// 종족의 속성 목록(1개 또는 2개). 속성을 다루는 곳은 모두 이 함수를 거친다.
+function speciesElements(species) { return [species.element, species.element2].filter(id => ELEMENTS[id]); }
+function elementNames(species) { return speciesElements(species).map(id => ELEMENTS[id].label).join('·'); }
+function elementLabel(species) { return speciesElements(species).map(id => `${ELEMENTS[id].icon} ${ELEMENTS[id].label}`).join(' · '); }
+function speciesLooks(speciesId) { return game.discoveredLooksBySpecies[speciesId] || []; }
 function traitNames(pet) { return pet.traits.map(t => TRAITS[t].name).join(' / ') || '특성 없음'; }
 function parentOptionLabel(pet) { return `${pet.name} · ${traitNames(pet)} · 에너지 ${Math.round(pet.energy)}`; }
 
@@ -593,7 +620,7 @@ function renderPetCard(pet) {
   const species = SPECIES[pet.speciesId];
   const selected = selectedPetId === pet.id ? 'selected' : '';
   return `<button class="pet-card ${selected}" data-pet-id="${pet.id}">
-    <span class="pet-avatar">${species.icon}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${ELEMENTS[species.element].label} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
+    <span class="pet-avatar">${species.icon}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${elementNames(species)} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
   </button>`;
 }
 
@@ -607,6 +634,29 @@ function renderRegions() {
     const gift = region.giftSpecies && SPECIES[region.giftSpecies] ? '<br>🎁 개방하면 이 지역의 펫 1마리가 합류해요.' : '';
     return `<div class="info-box" data-region="${id}" style="margin-bottom:7px;border-style:dashed"><b>🌫️ ${region.name}</b> · 안개에 가려진 지역<br><span data-region-req="${id}">${regionRequirementsHtml(id)}</span>${gift}<button class="btn ${ready ? 'primary' : 'secondary'} full" style="margin-top:8px" data-unlock-region="${id}" ${ready ? '' : 'disabled'}>안개 걷어내기</button></div>`;
   }).join('');
+}
+
+// 마을 그림에서 누른 시설의 정보와 배치된 펫을 보여 준다.
+function renderSelectedBuildingPanel() {
+  const building = getBuildingById(ui.selectedBuildingId);
+  if (!building) return `<div class="info-box" style="margin-bottom:4px">마을 그림에서 시설을 누르면 정보와 배치된 펫을 볼 수 있어요.</div>`;
+  const meta = BUILDING_TYPES[building.type];
+  const lines = [`<span style="color:#adbea9">${meta.description}</span>`];
+  let workerList = '';
+  if (meta.output) {
+    lines.push(`생산: ${resourceLabel(meta.output)}${building.type === 'quarry' ? ` (부산물 ${resourceLabel('ore')})` : ''} · 생산량 ×${building.level}`);
+    lines.push(`적성 속성: ${meta.affinityElements.map(id => ELEMENTS[id].label).join(', ')} (생산량 ×${CONFIG.affinityMultiplier})`);
+    const workers = game.pets.filter(p => p.workBuildingId === building.id);
+    lines.push(`작업 펫 ${workers.length}/${meta.capacity}마리`);
+    workerList = workers.length ? `<div class="pet-list" style="margin-top:7px">${workers.map(renderPetCard).join('')}</div>` : '<div class="empty-state" style="margin-top:7px">배치된 펫이 없어요.</div>';
+  } else if (building.type === 'nursery') {
+    lines.push(`부화 대기 중인 알 ${game.eggs.length}/${CONFIG.maxEggs}개`);
+  } else {
+    lines.push(`마을 발전 ${currentVillageLevel()}단계`);
+  }
+  const levelText = meta.output ? `Lv.${building.level}/${CONFIG.maxBuildingLevel}` : `Lv.${building.level}`;
+  return `<div class="subheading"><span>선택한 시설</span><span class="count-pill">${levelText}</span></div>
+    <div class="info-box" data-selected-building="${building.id}"><b>${meta.icon} ${meta.name}</b><br>${lines.join('<br>')}</div>${workerList}`;
 }
 
 function renderVillageTab() {
@@ -627,6 +677,7 @@ function renderVillageTab() {
   const available = Object.entries(BUILDING_TYPES).filter(([type, meta]) => meta.output && !getBuilding(type));
   const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${costLabel(meta.cost)}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
   return `<h2 class="section-title">마을 관리</h2><p class="section-description">작업장을 세우고 펫을 배치해 마을의 기반을 넓혀보세요.</p>
+    ${renderSelectedBuildingPanel()}
     <div class="subheading"><span>건설된 시설</span><span class="count-pill">${game.buildings.length}개</span></div><div class="build-grid">${buildings}</div>
     <div class="subheading"><span>새 시설 건설</span><span class="count-pill">자원 사용</span></div><div class="build-grid">${buildCards || '<div class="empty-state">모든 기본 생산 시설을 건설했어요.</div>'}</div>
     <div class="subheading"><span>지역</span><span class="count-pill">${game.unlockedRegions.length}/${Object.keys(REGIONS).length} 개방</span></div>${renderRegions()}
@@ -641,14 +692,18 @@ function renderSelectedPetPanel() {
   const buildings = game.buildings.filter(b => BUILDING_TYPES[b.type].capacity);
   const chosen = ui.pendingWork && ui.pendingWork.petId === pet.id ? ui.pendingWork.value : (pet.workBuildingId || '');
   const traitChips = pet.traits.map(t => `<span class="trait-chip">${TRAITS[t].name} · ${TRAITS[t].effect}</span>`).join('') || '<span class="trait-chip">특성 없음</span>';
-  const goodAt = Object.values(BUILDING_TYPES).filter(meta => meta.affinityElements.includes(species.element)).map(meta => meta.name).join(', ') || '없음';
+  const goodAt = Object.keys(BUILDING_TYPES).filter(type => hasAffinity(pet, type)).map(type => BUILDING_TYPES[type].name).join(', ') || '없음';
   const canRelease = game.pets.length > CONFIG.minPets;
+  const nameValue = ui.pendingName && ui.pendingName.petId === pet.id ? ui.pendingName.value : pet.name;
   return `<div class="subheading"><span>선택한 펫 관리</span><span class="count-pill" data-live-energy-text="${pet.id}">${energyText(pet)}</span></div>
     <div class="pet-profile"><div class="pet-profile-head"><span class="pet-avatar">${species.icon}</span><div><strong>${escapeHtml(pet.name)}</strong><small>${elementLabel(species)} · ${RARITIES[species.rarity].label} · <span data-live-state="${pet.id}">${petStateLabel(pet)}</span></small></div></div>
       <div class="pet-profile-row">${traitChips}</div>
       <div class="pet-profile-row"><small>잘하는 일: ${goodAt}${pet.appearance ? ` · 희귀 외형: ${escapeHtml(pet.appearance)} ✦` : ''}</small></div></div>
     <label class="field-label" for="workSelect">작업장 배치</label><select class="select" id="workSelect"><option value="">자유 생활</option>${buildings.map(b => `<option value="${b.id}" ${chosen === b.id ? 'selected' : ''}>${BUILDING_TYPES[b.type].name} (${assignedCount(b.id)}/${BUILDING_TYPES[b.type].capacity})${hasAffinity(pet, b.type) ? ' · 적성 ★' : ''}</option>`).join('')}</select>
-    <div class="button-row"><button class="btn primary" id="assignButton">배치 적용</button><button class="btn secondary" id="feedButton">먹이 주기 🌿${CONFIG.feedPlantCost}</button><button class="btn danger" id="releaseButton" ${canRelease ? '' : `disabled title="펫은 최소 ${CONFIG.minPets}마리가 필요해요."`}>놓아주기</button></div>`;
+    <div class="button-row"><button class="btn primary" id="assignButton">배치 적용</button><button class="btn secondary" id="feedButton">먹이 주기 🌿${CONFIG.feedPlantCost}</button><button class="btn danger" id="releaseButton" ${canRelease ? '' : `disabled title="펫은 최소 ${CONFIG.minPets}마리가 필요해요."`}>놓아주기</button></div>
+    <div class="button-row"><button class="btn secondary" id="strokeButton">쓰다듬기</button><button class="btn secondary" id="playButton">놀아주기 ⚡${CONFIG.playEnergyCost}</button></div>
+    <label class="field-label" for="petNameInput">이름 (최대 ${CONFIG.maxPetNameLength}자)</label>
+    <div class="button-row" style="margin-top:0"><input class="select" id="petNameInput" style="flex:1;min-width:0" maxlength="${CONFIG.maxPetNameLength}" value="${escapeHtml(nameValue)}"><button class="btn secondary" id="renameButton">이름 바꾸기</button></div>`;
 }
 
 function renderPetsTab() {
@@ -690,11 +745,11 @@ function renderDexTab() {
       const species = SPECIES[id];
       const found = game.discoveredSpecies.includes(id);
       const hint = !open ? '지역 미개방' : species.breedOnly ? '특별한 부모 조합 필요' : '발견 조건 미확인';
-      return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${ELEMENTS[species.element].label} · ${RARITIES[species.rarity].label}` : hint}</small></div>`;
+      return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${elementNames(species)} · ${RARITIES[species.rarity].label}${speciesLooks(id).length ? ` · ✦${speciesLooks(id).length}` : ''}` : hint}</small></div>`;
     }).join('');
     return `<div class="subheading" data-dex-region="${regionId}"><span>${open ? region.icon : '🌫️'} ${region.name}</span><span class="count-pill">${foundCount} / ${ids.length}</span></div><div class="dex-grid">${cards}</div>`;
   }).join('');
-  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div>${groups}<div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${SPECIES[id].icon} ${SPECIES[id].name}</b> · ${ELEMENTS[SPECIES[id].element].label} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span></div>`).join('')}`;
+  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div>${groups}<div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${SPECIES[id].icon} ${SPECIES[id].name}</b> · ${elementNames(SPECIES[id])} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span>${speciesLooks(id).length ? `<br>✦ 희귀 외형 ${speciesLooks(id).length}/${CONFIG.rareLookVariants}: ${speciesLooks(id).slice().sort().map(escapeHtml).join(', ')}` : ''}</div>`).join('')}`;
 }
 
 // 화면 전체를 다시 그린다. 버튼을 누르거나 알이 부화하는 등 "구성"이 바뀔 때만 호출한다.
@@ -751,7 +806,7 @@ function refreshLive() {
 }
 
 function selectPet(petId) {
-  if (selectedPetId !== petId) ui.pendingWork = null;
+  if (selectedPetId !== petId) { ui.pendingWork = null; ui.pendingName = null; }
   selectedPetId = petId;
 }
 
@@ -786,6 +841,17 @@ function bindPanelEvents() {
   if (feedButton) feedButton.addEventListener('click', feedSelectedPet);
   const releaseButton = $('#releaseButton');
   if (releaseButton) releaseButton.addEventListener('click', releaseSelectedPet);
+  const strokeButton = $('#strokeButton');
+  if (strokeButton) strokeButton.addEventListener('click', strokeSelectedPet);
+  const playButton = $('#playButton');
+  if (playButton) playButton.addEventListener('click', playWithSelectedPet);
+  const petNameInput = $('#petNameInput');
+  if (petNameInput) {
+    petNameInput.addEventListener('input', () => { ui.pendingName = { petId: selectedPetId, value: petNameInput.value }; });
+    petNameInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') renameSelectedPet(); });
+  }
+  const renameButton = $('#renameButton');
+  if (renameButton) renameButton.addEventListener('click', renameSelectedPet);
   const breedButton = $('#breedButton');
   if (breedButton) breedButton.addEventListener('click', startBreeding);
 }
@@ -847,6 +913,47 @@ function feedSelectedPet() {
   if (pet.resting && pet.energy >= pet.maxEnergy * CONFIG.resumeEnergyRatio) pet.resting = false;
   game.message = `${pet.name}에게 먹이를 줬어요.`;
   saveGame(); renderAll(); toast(`${pet.name}의 에너지가 회복됐어요.`);
+}
+
+// 교감 연출. 친밀도 같은 수치는 없고 화면 연출만 한다(놀아주기는 에너지만 소모).
+function startPetEffect(petId, type, seconds) {
+  const now = performance.now();
+  petEffects.set(petId, { type, startedAt: now, until: now + seconds * 1000 });
+}
+function activePetEffect(petId) {
+  const effect = petEffects.get(petId);
+  if (!effect) return null;
+  if (performance.now() >= effect.until) { petEffects.delete(petId); return null; }
+  return effect;
+}
+function strokeSelectedPet() {
+  const pet = getSelectedPet();
+  if (!pet) return;
+  startPetEffect(pet.id, 'stroke', CONFIG.strokeEffectSeconds);
+  game.message = `${pet.name}이(가) 기분 좋아해요.`;
+  refreshLive();
+}
+function playWithSelectedPet() {
+  const pet = getSelectedPet();
+  if (!pet) return;
+  if (isWorking(pet) || isResting(pet)) return toast('자유 생활 중인 펫과만 놀 수 있어요.');
+  if (pet.energy < CONFIG.playEnergyCost) return toast('에너지가 부족해요.');
+  pet.energy = clamp(pet.energy - CONFIG.playEnergyCost, 0, pet.maxEnergy);
+  startPetEffect(pet.id, 'play', CONFIG.playEffectSeconds);
+  game.message = `${pet.name}이(가) 신나게 뛰어놀아요.`;
+  saveGame(); refreshLive();
+}
+
+function renameSelectedPet() {
+  const pet = getSelectedPet();
+  if (!pet) return;
+  const name = ($('#petNameInput')?.value || '').trim().slice(0, CONFIG.maxPetNameLength);
+  if (!name) return toast('이름을 입력해 주세요.');
+  if (name === pet.name) return toast('지금 이름과 같아요.');
+  pet.name = name;
+  ui.pendingName = null;
+  game.message = `이름을 ${name}(으)로 바꿨어요.`;
+  saveGame(); renderAll(); toast(game.message);
 }
 
 // 펫 한도(maxPets)가 차면 알이 부화하지 못하므로, 자리를 비울 수단으로 놓아주기를 제공한다.
@@ -979,12 +1086,16 @@ function drawBuilding(building) {
   ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);
   ctx.font='bold 12px sans-serif';ctx.fillStyle='#18341e';ctx.fillText(info.name,x,y+43);
   if(info.capacity){ctx.font='10px sans-serif';ctx.fillStyle='#f3f7e8';ctx.fillText(`${assignedCount(building.id)}/${info.capacity}`,x+34,y+37);}
+  if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-6,64,58,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 }
 function drawPet(pet) {
   const x=pet.x*canvas.width, y=pet.y*canvas.height;
   const species=SPECIES[pet.speciesId];
   const resting=isResting(pet);
-  const bob=resting ? 0 : Math.sin(pet.bob)*2;
+  const effect=activePetEffect(pet.id);
+  const effectTime=effect ? (performance.now()-effect.startedAt)/1000 : 0;
+  // 쓰다듬기·놀아주기 중에는 폴짝폴짝 뛴다.
+  const bob=effect ? -Math.abs(Math.sin(effectTime*(effect.type==='play'?11:8)))*(effect.type==='play'?7:5) : resting ? 0 : Math.sin(pet.bob)*2;
   ctx.fillStyle='rgba(30,57,31,.25)';ctx.beginPath();ctx.ellipse(x,y+14,17,7,0,0,Math.PI*2);ctx.fill();
   ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
   ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();
@@ -998,12 +1109,25 @@ function drawPet(pet) {
   if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+17,y-14+Math.sin(pet.bob*.5)*2);}
   if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-15,y-18+bob);}
   if(selectedPetId===pet.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y+1,22,21,0,0,Math.PI*2);ctx.stroke();}
+  if(effect){
+    // 머리 위로 떠오르며 사라지는 하트(쓰다듬기) 또는 음표(놀아주기)
+    const progress=clamp((performance.now()-effect.startedAt)/(effect.until-effect.startedAt),0,1);
+    const mark=effect.type==='play'?'🎵':'💗';
+    ctx.save();ctx.font='14px sans-serif';ctx.textAlign='center';
+    for(let i=0;i<3;i++){
+      const p=(progress*(effect.type==='play'?3:1.5)+i/3)%1;
+      ctx.globalAlpha=1-p;
+      ctx.fillText(mark,x+(i-1)*13+Math.sin((p+i)*6)*3,y-34-p*24);
+    }
+    ctx.restore();
+  }
 }
 function drawEgg(x,y){ctx.fillStyle='rgba(44,39,56,.24)';ctx.beginPath();ctx.ellipse(x,y+9,9,4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f8e7c9';ctx.beginPath();ctx.ellipse(x,y,7,9,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c49b82';ctx.lineWidth=1.5;ctx.stroke();}
 function movePets(delta) {
   const seconds=Math.min(delta/1000,.08);
   game.pets.forEach((pet,index)=>{
     pet.bob += seconds*5;
+    const effect=activePetEffect(pet.id);
     const workingBuilding=isWorking(pet) ? getWorkBuilding(pet) : null;
     if(workingBuilding){
       // 작업 중: 작업장 앞으로 이동해 머문다.
@@ -1013,6 +1137,13 @@ function movePets(delta) {
     } else if(isResting(pet)){
       // 휴식 중: 제자리에서 쉰다.
       pet.targetX=pet.x;pet.targetY=pet.y;pet.idleTimer=null;
+    } else if(effect&&effect.type==='stroke'){
+      // 쓰다듬는 동안: 제자리에서 기뻐한다.
+      pet.targetX=pet.x;pet.targetY=pet.y;pet.idleTimer=null;
+    } else if(effect&&effect.type==='play'){
+      // 놀아주는 동안: 쉬지 않고 이리저리 뛰어다닌다.
+      pet.idleTimer=null;
+      if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){pet.targetX=.12+Math.random()*.76;pet.targetY=.15+Math.random()*.7;}
     } else if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){
       // 자유 생활: 목적지에 도착하면 잠깐 머문 뒤 새 목적지를 정한다. 활발한 펫은 덜 머문다.
       if(pet.idleTimer==null){
@@ -1024,7 +1155,8 @@ function movePets(delta) {
     }
     const dx=pet.targetX-pet.x,dy=pet.targetY-pet.y,dist=Math.hypot(dx,dy);
     pet.moving=dist>.005;
-    if(pet.moving){const speed=CONFIG.baseMoveSpeed*(traitHas(pet,'nimble') ? CONFIG.nimbleSpeedMultiplier : 1)*seconds;pet.x+=dx/dist*Math.min(dist,speed);pet.y+=dy/dist*Math.min(dist,speed);pet.direction=dx>=0?1:-1;}
+    const playing=Boolean(effect&&effect.type==='play'&&!workingBuilding);
+    if(pet.moving){const speed=CONFIG.baseMoveSpeed*(traitHas(pet,'nimble') ? CONFIG.nimbleSpeedMultiplier : 1)*(playing ? CONFIG.playSpeedMultiplier : 1)*seconds;pet.x+=dx/dist*Math.min(dist,speed);pet.y+=dy/dist*Math.min(dist,speed);pet.direction=dx>=0?1:-1;}
   });
 }
 function animationLoop(timestamp) {
@@ -1043,7 +1175,10 @@ function handleCanvasClick(event) {
   const hitRadius=Math.max(30,24*scale);
   let nearest=null,nearestDist=Infinity;
   game.pets.forEach(p=>{const d=Math.hypot(p.x*canvas.width-x,p.y*canvas.height-y);if(d<hitRadius&&d<nearestDist){nearest=p;nearestDist=d;}});
-  if(nearest){selectPet(nearest.id);activeTab='pets';renderAll();}
+  if(nearest){selectPet(nearest.id);activeTab='pets';renderAll();return;}
+  // 펫이 없는 곳을 눌렀으면 시설을 눌렀는지 본다(시설 그림의 대략적인 범위).
+  const hit=game.buildings.find(b=>Math.abs(b.x*canvas.width-x)<58&&y>b.y*canvas.height-64&&y<b.y*canvas.height+48);
+  if(hit){ui.selectedBuildingId=hit.id;activeTab='village';renderAll();}
 }
 
 // 1초마다, 그리고 탭으로 돌아올 때 호출된다.
@@ -1061,7 +1196,7 @@ function bindGlobalEvents() {
   $('#resetButton').addEventListener('click',()=>{
     if(confirm('현재 마을 저장 데이터를 삭제하고 처음부터 시작할까요?')){
       localStorage.removeItem(CONFIG.saveKey);game=createInitialGame();
-      ui.parentA=null;ui.parentB=null;ui.pendingWork=null;awaySnapshot=null;
+      ui.parentA=null;ui.parentB=null;ui.pendingWork=null;ui.pendingName=null;ui.selectedBuildingId=null;petEffects.clear();awaySnapshot=null;
       selectedPetId=game.pets[0].id;saveGame();renderAll();toast('새로운 마을을 시작합니다.');
     }
   });

@@ -317,6 +317,75 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('7 놓아주기(확인 후) 펫 -1, 도감 유지', await page.evaluate((n) => game.pets.length === n - 1 && game.discoveredSpecies.length >= 3, relBefore));
   check('7 최소 2마리일 때 놓아주기 비활성', await page.evaluate(() => { game.pets = game.pets.slice(0, 2); selectedPetId = game.pets[0].id; renderAll(); return document.querySelector('#releaseButton').disabled; }));
 
+  // ---------- 7-2. 교감(쓰다듬기·놀아주기)·이름 바꾸기·시설 누르기·종족별 희귀 외형 ----------
+  await page.evaluate(() => { const pet = game.pets[0]; pet.workBuildingId = null; pet.resting = false; pet.energy = 80; selectedPetId = pet.id; activeTab = 'pets'; renderAll(); });
+  const before72 = await page.evaluate(() => ({ energy: game.pets[0].energy, keys: Object.keys(game.pets[0]).sort().join(), saved: localStorage.getItem(CONFIG.saveKey).includes('petEffects') }));
+  await page.click('#strokeButton');
+  const stroke = await page.evaluate(() => { const pet = game.pets[0]; const fx = activePetEffect(pet.id); drawVillage(); return { type: fx && fx.type, energy: pet.energy, keys: Object.keys(pet).sort().join(), msg: game.message, x: pet.x, y: pet.y }; });
+  await page.waitForTimeout(700);
+  const strokeStill = await page.evaluate(() => ({ x: game.pets[0].x, y: game.pets[0].y }));
+  check('7-2 쓰다듬기: 연출 시작, 에너지·저장 항목 변화 없음(수치 없음)', stroke.type === 'stroke' && stroke.energy === before72.energy && stroke.keys === before72.keys && stroke.msg.includes('기분 좋아해요'), JSON.stringify(stroke));
+  check('7-2 쓰다듬는 동안 제자리에 머묾', Math.hypot(stroke.x - strokeStill.x, stroke.y - strokeStill.y) < 0.02, JSON.stringify([stroke, strokeStill]));
+  await page.waitForTimeout(1200);
+  check('7-2 쓰다듬기 연출은 잠시 뒤 끝남', await page.evaluate(() => activePetEffect(game.pets[0].id) === null));
+  await page.click('#playButton');
+  const play0 = await page.evaluate(() => { const pet = game.pets[0]; const fx = activePetEffect(pet.id); return { type: fx && fx.type, energy: pet.energy, x: pet.x, y: pet.y, savedEnergy: JSON.parse(localStorage.getItem(CONFIG.saveKey)).pets[0].energy }; });
+  await page.waitForTimeout(1500);
+  const play1 = await page.evaluate(() => ({ x: game.pets[0].x, y: game.pets[0].y }));
+  check('7-2 놀아주기: 에너지 -5(저장됨) + 연출 시작', play0.type === 'play' && play0.energy === before72.energy - 5 && play0.savedEnergy === before72.energy - 5, JSON.stringify(play0));
+  check('7-2 놀아주는 동안 평소보다 빠르게 뛰어다님', Math.hypot(play0.x - play1.x, play0.y - play1.y) > 0.11 * 1.5 * 1.2 || await page.evaluate(() => CONFIG.playSpeedMultiplier > 1 && game.pets[0].moving), JSON.stringify([play0, play1]));
+  const playBlocked = await page.evaluate(() => {
+    const pet = game.pets[0]; petEffects.clear();
+    pet.workBuildingId = getBuilding('farm').id; pet.energy = 80; playWithSelectedPet(); const working = { energy: pet.energy, fx: activePetEffect(pet.id) };
+    pet.workBuildingId = null; pet.energy = 10; playWithSelectedPet(); const tired = { energy: pet.energy, fx: activePetEffect(pet.id) };
+    pet.energy = 80; return { working, tired, noStat: !('affection' in pet) && !('friendship' in pet) && !('intimacy' in pet) };
+  });
+  check('7-2 작업 중이거나 지친 펫과는 놀 수 없음(에너지 변화 없음)', playBlocked.working.energy === 80 && !playBlocked.working.fx && playBlocked.tired.energy === 10 && !playBlocked.tired.fx && playBlocked.noStat, JSON.stringify(playBlocked));
+  // 이름 바꾸기
+  await page.evaluate(() => renderAll());
+  await page.fill('#petNameInput', '  뭉치<b>  ');
+  await page.waitForTimeout(1200);   // 매초 갱신에도 입력 중인 글자가 유지되는지
+  check('7-2 입력 중인 이름이 매초 갱신에도 유지됨', (await page.inputValue('#petNameInput')) === '  뭉치<b>  ');
+  await page.click('#renameButton');
+  const renamedPet = await page.evaluate(() => ({ name: game.pets[0].name, saved: JSON.parse(localStorage.getItem(CONFIG.saveKey)).pets[0].name, html: document.querySelector('.pet-profile strong').innerHTML, card: document.querySelector('.pet-card.selected .pet-name').textContent, injected: !!document.querySelector('.pet-profile b, .pet-card b') }));
+  check('7-2 이름 바꾸기: 앞뒤 공백 제거, 저장, 화면 반영, 특수문자 안전 처리', renamedPet.name === '뭉치<b>' && renamedPet.saved === '뭉치<b>' && renamedPet.card.includes('뭉치<b>') && !renamedPet.injected, JSON.stringify(renamedPet));
+  const nameRules = await page.evaluate(() => {
+    const input = document.querySelector('#petNameInput'); const pet = game.pets[0];
+    input.value = '   '; renameSelectedPet(); const empty = pet.name;
+    document.querySelector('#petNameInput').value = '가나다라마바사아자차카타파하'; renameSelectedPet(); const long = pet.name;
+    return { empty, long, max: CONFIG.maxPetNameLength, attr: document.querySelector('#petNameInput').maxLength };
+  });
+  check('7-2 빈 이름 거부, 최대 10자로 자름', nameRules.empty === '뭉치<b>' && nameRules.long === '가나다라마바사아자차' && nameRules.long.length === nameRules.max && nameRules.attr === nameRules.max, JSON.stringify(nameRules));
+  await page.click('[data-tab="breed"]');
+  check('7-2 바꾼 이름이 교배 탭 부모 목록에도 표시', (await page.textContent('#parentA')).includes('가나다라마바사아자차'));
+  // 시설 누르기
+  const farmPoint = await page.evaluate(() => { const b = getBuilding('farm'); game.pets.forEach(p => { p.workBuildingId = null; p.x = .5; p.y = .12; p.targetX = .5; p.targetY = .12; }); game.pets[1].workBuildingId = b.id; game.pets[1].energy = 100; game.pets[1].resting = false; const r = canvas.getBoundingClientRect(); return { id: b.id, x: r.left + b.x * r.width, y: r.top + (b.y - .03) * r.height, worker: game.pets[1].name }; });
+  await page.mouse.click(farmPoint.x, farmPoint.y);
+  const bsel = await page.evaluate(() => ({ tab: activeTab, id: ui.selectedBuildingId, text: document.querySelector('[data-selected-building]')?.textContent || '', workers: [...document.querySelectorAll('[data-selected-building] ~ .pet-list .pet-name')].map(n => n.textContent), firstList: document.querySelector('[data-selected-building] + .pet-list .pet-name')?.textContent || '' }));
+  check('7-2 마을 그림에서 시설을 누르면 마을 탭에 시설 정보 표시', bsel.tab === 'village' && bsel.id === farmPoint.id && bsel.text.includes('농장') && bsel.text.includes('생산: 🌿 식물') && bsel.text.includes('적성 속성: 풀, 물') && bsel.text.includes('작업 펫 1/2마리'), bsel.text);
+  check('7-2 선택한 시설에 배치된 펫 표시', bsel.firstList.includes(farmPoint.worker), JSON.stringify(bsel.firstList));
+  const nurseryPoint = await page.evaluate(() => { const b = getBuilding('nursery'); const r = canvas.getBoundingClientRect(); return { x: r.left + b.x * r.width, y: r.top + (b.y - .03) * r.height }; });
+  await page.mouse.click(nurseryPoint.x, nurseryPoint.y);
+  check('7-2 교배장을 누르면 알 개수 표시', (await page.textContent('[data-selected-building]')).includes('부화 대기 중인 알'));
+  const petOver = await page.evaluate(() => { const b = getBuilding('farm'); const p = game.pets[0]; p.x = b.x; p.y = b.y; p.targetX = b.x; p.targetY = b.y; const r = canvas.getBoundingClientRect(); return { id: p.id, x: r.left + b.x * r.width, y: r.top + b.y * r.height }; });
+  await page.mouse.click(petOver.x, petOver.y);
+  check('7-2 시설 위에 펫이 있으면 펫 선택이 우선', await page.evaluate((id) => selectedPetId === id && activeTab === 'pets', petOver.id));
+  // 종족별 희귀 외형
+  const looks = await page.evaluate(() => {
+    const before = game.discoveredLooks.length;
+    game.eggs.push({ id: 'egg_look1', remainingSeconds: 1, result: { speciesId: 'dewotter', traits: ['smart'], look: '특별 무늬 2', name: SPECIES.dewotter.name } },
+                   { id: 'egg_look2', remainingSeconds: 1, result: { speciesId: 'dewotter', traits: ['smart'], look: '특별 무늬 1', name: SPECIES.dewotter.name } },
+                   { id: 'egg_look3', remainingSeconds: 1, result: { speciesId: 'dewotter', traits: ['smart'], look: '특별 무늬 2', name: SPECIES.dewotter.name } });
+    simulateSeconds(2); activeTab = 'dex'; renderAll();
+    const copy = JSON.parse(JSON.stringify(game)); delete copy.discoveredLooksBySpecies;
+    const rebuilt = normalizeGame(copy).discoveredLooksBySpecies;
+    const copy2 = JSON.parse(JSON.stringify(game)); copy2.discoveredLooksBySpecies = { ghost: ['x'], dewotter: ['특별 무늬 3', 5, '특별 무늬 3'], sproutbun: 'bad' };
+    return { by: game.discoveredLooksBySpecies.dewotter, global: game.discoveredLooks.length >= before, panel: document.querySelector('#panelContent').textContent, rebuilt: rebuilt.dewotter, fixed: normalizeGame(copy2).discoveredLooksBySpecies };
+  });
+  check('7-2 희귀 외형을 종족별로 기록(중복 제외) + 도감 표시', looks.by.length === 2 && looks.by.slice().sort().join() === '특별 무늬 1,특별 무늬 2' && looks.global && looks.panel.includes('✦ 희귀 외형 2/3: 특별 무늬 1, 특별 무늬 2') && looks.panel.includes('· ✦2'), JSON.stringify(looks.by));
+  check('7-2 예전 저장(종족별 기록 없음)은 데리고 있는 펫의 외형으로 채움, 잘못된 값 보정', looks.rebuilt.slice().sort().join() === '특별 무늬 1,특별 무늬 2' && !looks.fixed.ghost && looks.fixed.dewotter.slice().sort().join() === '특별 무늬 1,특별 무늬 2,특별 무늬 3', JSON.stringify(looks.fixed));
+  await page.evaluate(() => { game.pets[0].name = SPECIES[game.pets[0].speciesId].name; ui.selectedBuildingId = null; activeTab = 'pets'; renderAll(); });
+
   // ---------- 8. 버튼 연결 ----------
   await page.click('#helpButton'); const open = await page.evaluate(() => document.querySelector('#helpDialog').open);
   await page.click('#closeHelp'); const closed = await page.evaluate(() => !document.querySelector('#helpDialog').open);
