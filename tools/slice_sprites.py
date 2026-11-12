@@ -136,8 +136,8 @@ def main():
         arr = np.array(small); arr[..., 3] = np.where(arr[..., 3] >= 128, 255, 0); arr[arr[..., 3] == 0] = 0
         # 몸에서 떨어진 외톨이 점(3픽셀 이하)을 지운다.
         solid = arr[..., 3] > 0
-        for count, x0, y0, x1, y1, pixels in small_blobs(solid):
-            if count <= 3:
+        for blob_size, _, _, _, _, pixels in small_blobs(solid):
+            if blob_size <= 3:
                 for py, px in pixels: arr[py, px] = 0
         small = Image.fromarray(arr, 'RGBA')
         canvas = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
