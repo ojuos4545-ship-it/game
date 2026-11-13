@@ -80,8 +80,11 @@
 - `assets/decor/`: 나무·소나무·덤불·꽃·바위·알 그림(64×64 투명 PNG)
 - `assets/resources/`: 자원 아이콘 4장(48×48 투명 PNG, 파일 이름은 자원 ID)
 - `tools/slice_sprites.py`: 여러 펫이나 시설을 한 장에 그린 그림을 하나씩 파일로 잘라 내는 도구(게임 실행에는 필요 없음)
+- `tools/build_single_html.py`: 게임 전체(그림 포함)를 HTML 파일 하나(`little-haven-single.html`)로 묶는 도구(게임 실행에는 필요 없음)
 - `IMPLEMENTATION_STATUS.md`: 기획 대비 구현 현황, 수정 내역, 다음 단계 제안
 - `TEST_RESULTS.md`: 검증 결과
 - `tests/regression.js`: 자동 검사 코드(게임 실행에는 필요 없음)
 - `DEVELOPMENT_GUIDE.md`: PC에서 Claude Code로 이어서 개발하는 단계별 길라잡이
 - `CLAUDE.md`: Claude Code가 자동으로 읽는 프로젝트 작업 규칙
+- `AGENTS.md`: GPT·Codex 같은 다른 AI 도구용 작업 규칙(`CLAUDE.md`와 같은 내용)
+- `HANDOFF.md`: 다른 AI로 작업을 이어 갈 때 읽는 인계 문서(지금까지 한 일, 코드 구조, 남은 일, 주의할 점)
