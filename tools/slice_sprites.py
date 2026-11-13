@@ -1,7 +1,9 @@
 """스프라이트 시트(여러 펫을 한 장에 그린 그림) 한 장을 펫별 48x48 투명 PNG로 잘라 낸다.
 게임 실행에는 필요 없는 도구다. Python과 Pillow, numpy가 있어야 한다.
-사용: python3 tools/slice_sprites.py <시트.png> <출력폴더> <이름1,이름2,...> [행수]
+사용: python3 tools/slice_sprites.py <시트.png> <출력폴더> <이름1,이름2,...> [행수] [가로] [세로]
+      가로·세로를 생략하면 48x48(펫)이다. 시설은 120 100을 준다.
 예:   python3 tools/slice_sprites.py sheet.png assets/pets sproutbun,pebblelamb,dewotter,breezefox,embergecko,sparkchick 2
+      python3 tools/slice_sprites.py sheet.png assets/buildings plaza,nursery,farm,lumber,quarry,smelter 2 120 100
 - 시트는 단색(자홍색 권장) 배경에 펫이 서로 떨어져 있어야 한다.
 - 배경: 네 모서리 색과 비슷한 색을 가장자리부터 번져 가며 지운다(안쪽의 같은 색은 남긴다).
 - 덩어리(연결된 불투명 영역)를 찾아 큰 순서로 이름 수만큼 고르고, 위→아래, 왼쪽→오른쪽 순으로 이름을 붙인다.
@@ -107,6 +109,8 @@ def small_blobs(solid):
 def main():
     sheet_path, out_dir, names = sys.argv[1], sys.argv[2], sys.argv[3].split(',')
     rows = int(sys.argv[4]) if len(sys.argv) > 4 else 2
+    out_w = int(sys.argv[5]) if len(sys.argv) > 5 else SIZE
+    out_h = int(sys.argv[6]) if len(sys.argv) > 6 else out_w
     image = Image.open(sheet_path).convert('RGB')
     # 계산을 빠르게 하려고 긴 변 768로 줄여서 처리한다.
     scale = 768 / max(image.size)
@@ -129,8 +133,7 @@ def main():
     print('배경색', bg_color.astype(int).tolist())
     for name, (count, x0, y0, x1, y1) in zip(names, ordered):
         crop = Image.fromarray(rgba[y0:y1, x0:x1], 'RGBA')
-        inner = SIZE - PAD * 2
-        ratio = inner / max(crop.size)
+        ratio = min((out_w - PAD * 2) / crop.width, (out_h - PAD * 2) / crop.height)
         small = crop.convert('RGBa').resize((max(1, round(crop.width * ratio)), max(1, round(crop.height * ratio))), Image.BOX).convert('RGBA')
         # 반투명 가장자리를 없애 픽셀아트처럼 또렷하게
         arr = np.array(small); arr[..., 3] = np.where(arr[..., 3] >= 128, 255, 0); arr[arr[..., 3] == 0] = 0
@@ -140,8 +143,8 @@ def main():
             if blob_size <= 3:
                 for py, px in pixels: arr[py, px] = 0
         small = Image.fromarray(arr, 'RGBA')
-        canvas = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-        canvas.paste(small, ((SIZE - small.width) // 2, SIZE - PAD - small.height))  # 발이 바닥에 닿게 아래 정렬
+        canvas = Image.new('RGBA', (out_w, out_h), (0, 0, 0, 0))
+        canvas.paste(small, ((out_w - small.width) // 2, out_h - PAD - small.height))  # 발이 바닥에 닿게 아래 정렬
         canvas.save(f'{out_dir}/{name}.png')
         print(f'{name}: 원본 {x1 - x0}x{y1 - y0} (픽셀 {count}) → {small.width}x{small.height}')
 

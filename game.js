@@ -108,7 +108,8 @@ const RARITIES = {
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
  * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG). 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
- * 펫 15종은 assets/pets 폴더의 그림을 쓴다. 시설은 아직 임시 그림이다.
+ * 펫 15종은 assets/pets, 시설 6종은 assets/buildings 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
+ * 시설 그림은 아래쪽 가운데가 시설 위치에 오도록 그린다. 땅에 닿는 부분을 그림 맨 아래에 맞춘다.
  */
 
 /* 종족 표. 이름은 모두 임시이며 나중에 한꺼번에 바꿀 예정이다(이름은 이 표에서만 고치면 된다).
@@ -163,14 +164,14 @@ const TRAITS = {
 
 // affinityElements: 이 속성의 펫은 해당 시설에서 생산량 보너스를 받는다(다른 속성도 작업은 가능).
 const BUILDING_TYPES = {
-  plaza: { name: '중앙 광장', icon: '🏡', cost: {}, output: null, capacity: 0, affinityElements: [], description: '마을의 중심 공간' },
-  nursery: { name: '교배장', icon: '🥚', cost: {}, output: null, capacity: 0, affinityElements: [], description: '두 펫의 만남과 알 부화' },
-  farm: { name: '농장', icon: '🌱', cost: { wood: 8, stone: 3 }, output: 'plant', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['grass', 'water'], description: '식물 자원을 생산' },
+  plaza: { name: '중앙 광장', icon: '🏡', image: 'assets/buildings/plaza.png', cost: {}, output: null, capacity: 0, affinityElements: [], description: '마을의 중심 공간' },
+  nursery: { name: '교배장', icon: '🥚', image: 'assets/buildings/nursery.png', cost: {}, output: null, capacity: 0, affinityElements: [], description: '두 펫의 만남과 알 부화' },
+  farm: { name: '농장', icon: '🌱', image: 'assets/buildings/farm.png', cost: { wood: 8, stone: 3 }, output: 'plant', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['grass', 'water'], description: '식물 자원을 생산' },
   // 벌목장 목재 비용은 6이다. 목재는 벌목장에서만 생산되므로, 시작 자원(목재 30)으로
   // 어떤 순서로 지어도 네 시설을 모두 지을 수 있게 맞춘 값이다(12였을 때는 영영 못 짓는 경우가 있었다).
-  lumber: { name: '벌목장', icon: '🪵', cost: { wood: 6, stone: 5 }, output: 'wood', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['earth', 'wind'], description: '목재 자원을 생산' },
-  quarry: { name: '채굴장', icon: '⛏️', cost: { wood: 10, stone: 8 }, output: 'stone', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['earth'], description: '돌과 광석을 생산' },
-  smelter: { name: '제련소', icon: '🔥', cost: { wood: 14, stone: 10, ore: 4 }, output: 'ore', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['fire', 'electric'], description: '광석을 모으고 정제' }
+  lumber: { name: '벌목장', icon: '🪵', image: 'assets/buildings/lumber.png', cost: { wood: 6, stone: 5 }, output: 'wood', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['earth', 'wind'], description: '목재 자원을 생산' },
+  quarry: { name: '채굴장', icon: '⛏️', image: 'assets/buildings/quarry.png', cost: { wood: 10, stone: 8 }, output: 'stone', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['earth'], description: '돌과 광석을 생산' },
+  smelter: { name: '제련소', icon: '🔥', image: 'assets/buildings/smelter.png', cost: { wood: 14, stone: 10, ore: 4 }, output: 'ore', capacity: CONFIG.maxWorkersPerBuilding, affinityElements: ['fire', 'electric'], description: '광석을 모으고 정제' }
 };
 
 /* 지역 표.
@@ -1142,7 +1143,8 @@ function drawBuilding(building) {
   ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,55,16,0,0,Math.PI*2); ctx.fill();
   const buildingImage = readySprite(`building:${building.type}`);
   if (buildingImage) {
-    ctx.drawImage(buildingImage, x-60, y-72, 120, 100);
+    // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
+    ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(buildingImage, Math.round(x)-60, Math.round(y)-72, 120, 100);ctx.restore();
   } else if (building.type === 'farm') {
     ctx.fillStyle = '#805e3e'; ctx.fillRect(x-42,y-18,84,43);
     for(let i=0;i<4;i++){ctx.strokeStyle='#b38c59';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-34+i*22,y-14);ctx.lineTo(x-34+i*22,y+21);ctx.stroke();}

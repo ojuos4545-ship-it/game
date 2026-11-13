@@ -370,42 +370,49 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   });
   check('6-4 마을 4단계 = 모든 시설 + 전체 종족 발견(하나라도 모자라면 3단계)', balance.top === balance.maxScore && balance.full === 4 && balance.almost === 3 && balance.ascending, JSON.stringify(balance));
   check('6-4 숲 개방 조건은 초원만으로 채울 수 있음(막힘 없음)', balance.forestReachable, JSON.stringify(balance));
-  // 그림 파일: 펫 15종은 assets/pets의 그림으로, 시설은 아직 임시 그림으로 그린다.
+  // 그림 파일: 펫 15종은 assets/pets, 시설 6종은 assets/buildings의 그림으로 그린다.
   const sprite = await page.evaluate(async () => {
     const out = {};
-    const ids = Object.keys(SPECIES);
+    const ids = Object.keys(SPECIES); const types = Object.keys(BUILDING_TYPES);
     out.allPetsHaveImage = ids.every(id => SPECIES[id].image === `assets/pets/${id}.png`);
     out.notLoaded = ids.filter(id => !readySprite(`pet:${id}`));
     out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 48 || img.naturalHeight !== 48; });
-    out.buildingsUsePlaceholder = Object.keys(BUILDING_TYPES).every(type => !BUILDING_TYPES[type].image && readySprite(`building:${type}`) === null);
+    out.allBuildingsHaveImage = types.every(type => BUILDING_TYPES[type].image === `assets/buildings/${type}.png`);
+    out.buildingNotLoaded = types.filter(type => !readySprite(`building:${type}`));
+    out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 120 || img.naturalHeight !== 100; });
     // 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 불러오지 못하면 임시 그림으로 그린다.
-    const real = { bun: SPECIES.sproutbun.image, lamb: SPECIES.pebblelamb.image, otter: SPECIES.dewotter.image };
+    const real = { bun: SPECIES.sproutbun.image, lamb: SPECIES.pebblelamb.image, otter: SPECIES.dewotter.image, farm: BUILDING_TYPES.farm.image, quarry: BUILDING_TYPES.quarry.image, plaza: BUILDING_TYPES.plaza.image };
     const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8);
     Object.keys(sprites).forEach(k => delete sprites[k]);
     SPECIES.sproutbun.image = c.toDataURL(); BUILDING_TYPES.farm.image = c.toDataURL(); SPECIES.pebblelamb.image = 'data:image/png;base64,broken'; delete SPECIES.dewotter.image;
+    BUILDING_TYPES.plaza.image = 'data:image/png;base64,broken'; delete BUILDING_TYPES.quarry.image;
     loadSprites(); await new Promise(r => setTimeout(r, 400));
     out.petReady = !!readySprite('pet:sproutbun'); out.buildingReady = !!readySprite('building:farm'); out.brokenFallsBack = readySprite('pet:pebblelamb') === null; out.missingFallsBack = readySprite('pet:dewotter') === null;
+    out.buildingBrokenFallsBack = readySprite('building:plaza') === null; out.buildingMissingFallsBack = readySprite('building:quarry') === null;
     try { drawVillage(); out.drawOk = true; } catch (e) { out.drawOk = false; out.error = e.message; }
     // 원래 상태로 되돌리고 그림을 다시 불러온다.
-    SPECIES.sproutbun.image = real.bun; SPECIES.pebblelamb.image = real.lamb; SPECIES.dewotter.image = real.otter; delete BUILDING_TYPES.farm.image;
+    SPECIES.sproutbun.image = real.bun; SPECIES.pebblelamb.image = real.lamb; SPECIES.dewotter.image = real.otter;
+    BUILDING_TYPES.farm.image = real.farm; BUILDING_TYPES.quarry.image = real.quarry; BUILDING_TYPES.plaza.image = real.plaza;
     Object.keys(sprites).forEach(k => delete sprites[k]);
     loadSprites(); await new Promise(r => setTimeout(r, 400));
-    out.restored = ids.every(id => readySprite(`pet:${id}`)) && readySprite('building:farm') === null;
+    out.restored = ids.every(id => readySprite(`pet:${id}`)) && types.every(type => readySprite(`building:${type}`));
     drawVillage();
     return out;
   });
   check('6-4 펫 그림: 15종 모두 그림 파일(48×48)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
-  check('6-4 시설은 아직 임시 그림', sprite.buildingsUsePlaceholder);
-  check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
-  // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫마다 자기 종족의 그림이 한 번씩 그려져야 한다.
+  check('6-4 시설 그림: 6종 모두 그림 파일(120×100)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
+  check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림(펫·시설 모두)', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.buildingBrokenFallsBack && sprite.buildingMissingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
+  // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫과 시설마다 자기 그림이 한 번씩 그려져야 한다.
   // (파일로 직접 열면 브라우저가 캔버스 픽셀 읽기를 막으므로, 그리기 호출을 세는 방식으로 확인한다.)
   const drawn = await page.evaluate(() => {
     const original = ctx.drawImage; const used = [];
     ctx.drawImage = function (image, ...rest) { used.push(image); return original.call(this, image, ...rest); };
     try { drawVillage(); } finally { ctx.drawImage = original; }
-    return { pets: game.pets.length, draws: used.length, allMatch: game.pets.every(p => used.includes(readySprite(`pet:${p.speciesId}`))) };
+    return { pets: game.pets.length, buildings: game.buildings.length, draws: used.length,
+      petsMatch: game.pets.every(p => used.includes(readySprite(`pet:${p.speciesId}`))), buildingsMatch: game.buildings.every(b => used.includes(readySprite(`building:${b.type}`))) };
   });
-  check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.draws === drawn.pets && drawn.allMatch, JSON.stringify(drawn));
+  check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.draws === drawn.pets + drawn.buildings && drawn.petsMatch, JSON.stringify(drawn));
+  check('6-4 시설 그림이 마을 화면에 그려짐(시설마다 한 번)', drawn.draws === drawn.pets + drawn.buildings && drawn.buildingsMatch, JSON.stringify(drawn));
 
   // 오른쪽 메뉴와 도감의 종족 아이콘: 그림이 있으면 그림, 없거나 불러오지 못하면 이모지
   const icons = await page.evaluate(async () => {
