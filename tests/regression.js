@@ -463,7 +463,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 28 || img.naturalHeight !== 28; });
     out.allBuildingsHaveImage = types.every(type => BUILDING_TYPES[type].image === `assets/buildings/${type}.png`);
     out.buildingNotLoaded = types.filter(type => !readySprite(`building:${type}`));
-    out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 60 || img.naturalHeight !== 50; });
+    out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 50 || img.naturalHeight !== 42; });
     out.resourceWrong = Object.keys(RESOURCES).filter(k => { const img = readySprite(`resource:${k}`); return RESOURCES[k].image !== `assets/resources/${k}.png` || !img || img.naturalWidth !== 24 || img.naturalHeight !== 24; });
     out.decorWrong = Object.keys(DECOR_IMAGES).filter(k => { const img = readySprite(`decor:${k}`); const size = { tree: 32, pine: 32, bush: 22, flowers: 18, rock: 18, egg: 12 }[k]; return DECOR_IMAGES[k] !== `assets/decor/${k}.png` || !img || img.naturalWidth !== size || img.naturalHeight !== size; });
     // 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 불러오지 못하면 임시 그림으로 그린다.
@@ -487,7 +487,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     return out;
   });
   check('6-4 펫 그림: 15종 모두 그림 파일(28×28)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
-  check('6-4 시설 그림: 6종 모두 그림 파일(60×50)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
+  check('6-4 시설 그림: 6종 모두 그림 파일(50×42)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
   check('6-6 자원 그림 4종(24×24)·장식 그림 6종(나무 32, 덤불 22, 꽃·바위 18, 알 12)을 불러옴', sprite.resourceWrong.length === 0 && sprite.decorWrong.length === 0, JSON.stringify({ resource: sprite.resourceWrong, decor: sprite.decorWrong }));
   check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림(펫·시설 모두)', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.buildingBrokenFallsBack && sprite.buildingMissingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
   // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫·시설·장식·알·배경이 각자 자기 그림으로 그려져야 한다.

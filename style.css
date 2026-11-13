@@ -37,8 +37,8 @@
   .build-card .btn{padding:10px 7px}
 }
 /* 시설·자원·알 그림. 확대·축소돼도 점이 또렷하게 보이도록 한다. small은 글자 줄 안에 넣는 크기. */
-.building-sprite{display:block;width:60px;height:50px;image-rendering:pixelated}
-.building-sprite.small{display:inline-block;width:30px;height:25px;vertical-align:-7px}
+.building-sprite{display:block;width:50px;height:42px;image-rendering:pixelated}
+.building-sprite.small{display:inline-block;width:25px;height:21px;vertical-align:-5px}
 .build-card .build-icon{min-height:50px;display:flex;align-items:flex-end}
 .resource-sprite{display:block;width:24px;height:24px;image-rendering:pixelated}
 .egg-sprite{display:block;width:24px;height:24px;image-rendering:pixelated}

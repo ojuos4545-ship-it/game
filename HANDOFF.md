@@ -141,7 +141,7 @@ game/
 ├─ game.js               게임 전체(데이터, 규칙, 저장, 화면 그리기) — 약 1,480줄
 ├─ assets/
 │  ├─ pets/              펫 그림 15장 (28×28 투명 PNG, 파일 이름 = 종족 ID, 화면에는 2배)
-│  ├─ buildings/         시설 그림 6장 (60×50, 파일 이름 = 시설 ID, 화면에는 2배)
+│  ├─ buildings/         시설 그림 6장 (50×42, 파일 이름 = 시설 ID, 화면에는 2배 = 100×84)
 │  ├─ decor/             tree·pine 32, bush 22, flowers·rock 18, egg 12 (화면에는 2배)
 │  └─ resources/         wood, stone, plant, ore (24×24)
 ├─ tests/regression.js   자동 검사 180개 (실제 Chromium으로 게임을 조작)
@@ -356,7 +356,7 @@ node tests/regression.js
 | 폴더 | 내용 | 크기 | 연결된 곳 |
 |---|---|---|---|
 | `assets/pets` | 종족 15종 | 28×28 (화면 56) | `SPECIES[id].image` |
-| `assets/buildings` | 시설 6종 | 60×50 | `BUILDING_TYPES[id].image` |
+| `assets/buildings` | 시설 6종 | 50×42 (화면 100×84) | `BUILDING_TYPES[id].image` |
 | `assets/decor` | tree, pine, bush, flowers, rock, egg | 32, 32, 22, 18, 18, 12 | 그리기 코드의 `DECOR_IMAGES` |
 | `assets/resources` | wood, stone, plant, ore | 24×24 | `RESOURCES[id].image` |
 
@@ -383,7 +383,7 @@ python3 tools/bold_pixels.py 임시폴더 assets/pets --colors 14
 ```
 
 ```bash
-python3 tools/slice_sprites.py 시트.png 임시폴더 plaza,nursery,farm,lumber,quarry,smelter 2 60 50
+python3 tools/slice_sprites.py 시트.png 임시폴더 plaza,nursery,farm,lumber,quarry,smelter 2 50 42
 ```
 
 ```bash

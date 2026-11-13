@@ -109,7 +109,7 @@ const RARITIES = {
 /* 그림 교체 방법 (종족 표 SPECIES와 시설 표 BUILDING_TYPES 공통)
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
- * 그림 크기: 펫 28×28, 시설 60×50, 자원 24×24 (투명 배경 PNG). 마을 화면에는 2배로 키워 그린다(한 점 = 화면 2칸).
+ * 그림 크기: 펫 28×28, 시설 50×42, 자원 24×24 (투명 배경 PNG). 마을 화면에는 2배로 키워 그린다(한 점 = 화면 2칸).
  * 진한 외곽선·쨍한 색으로 다듬는 방법은 tools/bold_pixels.py에 있다. 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
  * 펫 15종은 assets/pets, 시설 6종은 assets/buildings, 자원 4종(RESOURCES)은 assets/resources 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
  * 나무·꽃·바위·알 같은 장식 그림은 게임 데이터가 아니므로 아래 그리기 코드의 DECOR_IMAGES에 있다.
@@ -1326,8 +1326,8 @@ function drawVillage() {
   // 알은 교배장 오른쪽 옆에 놓는다(오른쪽 끝이라 자리가 없으면 왼쪽).
   const nursery = getBuilding('nursery');
   const nx = nursery ? nursery.x * w : w * .5, ny = nursery ? nursery.y * h : h * .5;
-  const eggRight = nx + 66 + 22 < w - 8;
-  const eggX = eggRight ? nx + 66 : nx - 66 - 22, eggY = ny + 6;
+  const eggRight = nx + 58 + 22 < w - 8;
+  const eggX = eggRight ? nx + 58 : nx - 58 - 22, eggY = ny + 6;
   game.eggs.forEach((egg, index) => { const ex = eggX + (index % 2) * 22, ey = eggY + Math.floor(index / 2) * 22; items.push({ y: ey + 9, draw: () => drawEgg(ex, ey) }); });
   game.pets.forEach(pet => items.push({ y: pet.y * h + 16, draw: () => drawPet(pet) }));
   items.sort((a, b) => a.y - b.y).forEach(item => item.draw());
@@ -1356,7 +1356,7 @@ function drawPlacement() {
   const image = readySprite(`building:${placing.type}`);
   const cx = left + w * cw / 2, by = top + h * ch;
   ctx.globalAlpha = .72;
-  if (image) { ctx.imageSmoothingEnabled = false; ctx.drawImage(image, Math.round(cx) - 60, Math.round(by) - 100, 120, 100); }
+  if (image) { const iw = image.naturalWidth * 2, ih = image.naturalHeight * 2; ctx.imageSmoothingEnabled = false; ctx.drawImage(image, Math.round(cx - iw / 2), Math.round(by) - ih, iw, ih); }
   else { ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(BUILDING_TYPES[placing.type].icon, cx, by - 30); }
   ctx.restore();
 }
@@ -1376,11 +1376,13 @@ function drawBuilding(building) {
   // building.y는 차지한 칸 묶음의 한가운데다. 그림 기준점 y는 그보다 12px 아래(그림 아래 끝 = 칸 묶음 아래 끝).
   const x = building.x * canvas.width, y = building.y * canvas.height + 12;
   const info = BUILDING_TYPES[building.type];
-  ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,55,16,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,47,14,0,0,Math.PI*2); ctx.fill();
   const buildingImage = readySprite(`building:${building.type}`);
   if (buildingImage) {
     // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
-    ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(buildingImage, Math.round(x)-60, Math.round(y)-72, 120, 100);ctx.restore();
+    // 그림 크기의 2배로 그린다(50×42칸 그림 → 화면 100×84). 그림 아래 끝 = 차지한 칸 묶음 아래 끝.
+    const iw=buildingImage.naturalWidth*2, ih=buildingImage.naturalHeight*2;
+    ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(buildingImage, Math.round(x-iw/2), Math.round(y)+28-ih, iw, ih);ctx.restore();
   } else if (building.type === 'farm') {
     ctx.fillStyle = '#805e3e'; ctx.fillRect(x-42,y-18,84,43);
     for(let i=0;i<4;i++){ctx.strokeStyle='#b38c59';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-34+i*22,y-14);ctx.lineTo(x-34+i*22,y+21);ctx.stroke();}
@@ -1393,7 +1395,7 @@ function drawBuilding(building) {
     if(building.type==='plaza'){ctx.fillStyle='#e8d4a7';ctx.beginPath();ctx.arc(x,y-30,8,0,Math.PI*2);ctx.fill();}
   }
   if(!buildingImage){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);}
-  if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-6,64,58,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+  if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-14,58,50,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 }
 // 시설 이름표: 어두운 바탕 위에 이름과 작업 펫 수를 쓴다.
 function drawBuildingLabel(building) {
