@@ -80,10 +80,10 @@ const CONFIG = {
 };
 
 const RESOURCES = {
-  wood: { label: '목재', icon: '🪵' },
-  stone: { label: '돌', icon: '🪨' },
-  plant: { label: '식물', icon: '🌿' },
-  ore: { label: '광석', icon: '⛏️' }
+  wood: { label: '목재', icon: '🪵', image: 'assets/resources/wood.png' },
+  stone: { label: '돌', icon: '🪨', image: 'assets/resources/stone.png' },
+  plant: { label: '식물', icon: '🌿', image: 'assets/resources/plant.png' },
+  ore: { label: '광석', icon: '⛏️', image: 'assets/resources/ore.png' }
 };
 
 // 속성은 종족과 분리된 데이터다. 종족은 속성 ID만 참조한다.
@@ -108,7 +108,8 @@ const RARITIES = {
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
  * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG). 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
- * 펫 15종은 assets/pets, 시설 6종은 assets/buildings 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
+ * 펫 15종은 assets/pets, 시설 6종은 assets/buildings, 자원 4종(RESOURCES)은 assets/resources 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
+ * 나무·꽃·바위·알 같은 장식 그림은 게임 데이터가 아니므로 아래 그리기 코드의 DECOR_IMAGES에 있다.
  * 시설 그림은 아래쪽 가운데가 시설 위치에 오도록 그린다. 땅에 닿는 부분을 그림 맨 아래에 맞춘다.
  */
 
@@ -627,7 +628,7 @@ function updateVillageLevel() {
 function resourceLabel(key) { return `${RESOURCES[key].icon} ${RESOURCES[key].label}`; }
 function renderResources() {
   $('#resourceStrip').innerHTML = Object.entries(RESOURCES).map(([key, value]) => `
-    <div class="resource-chip"><span class="ico">${value.icon}</span><div><small>${value.label}</small><strong>${Math.floor(game.resources[key])}</strong></div></div>
+    <div class="resource-chip"><span class="ico">${resourceIconHtml(key)}</span><div><small>${value.label}</small><strong>${Math.floor(game.resources[key])}</strong></div></div>
   `).join('');
 }
 
@@ -642,14 +643,17 @@ function energyText(pet) { return `${Math.round(pet.energy)}/${pet.maxEnergy} �
 function speciesElements(species) { return [species.element, species.element2].filter(id => ELEMENTS[id]); }
 function elementNames(species) { return speciesElements(species).map(id => ELEMENTS[id].label).join('·'); }
 function elementLabel(species) { return speciesElements(species).map(id => `${ELEMENTS[id].icon} ${ELEMENTS[id].label}`).join(' · '); }
-// 오른쪽 메뉴에 쓰는 종족 아이콘. 그림 파일이 있으면 그림으로, 없거나 불러오지 못했으면 이모지로 보여 준다.
-// small: 글자 줄 안에 넣는 작은 크기.
-function speciesIconHtml(speciesId, small = false) {
-  const species = SPECIES[speciesId];
-  const sprite = sprites[`pet:${speciesId}`];
-  if (!species.image || (sprite && sprite.failed)) return species.icon;
-  return `<img class="pet-sprite${small ? ' small' : ''}" src="${escapeHtml(species.image)}" alt="${species.icon}" draggable="false" onerror="this.replaceWith(this.alt)">`;
+// 오른쪽 메뉴에 쓰는 그림 아이콘. 그림 파일이 있으면 그림으로, 없거나 불러오지 못했으면 이모지로 보여 준다.
+function spriteImgHtml(key, path, emoji, className) {
+  const sprite = sprites[key];
+  if (!path || (sprite && sprite.failed)) return emoji;
+  return `<img class="${className}" src="${escapeHtml(path)}" alt="${escapeHtml(emoji)}" draggable="false" onerror="this.replaceWith(this.alt)">`;
 }
+// small: 글자 줄 안에 넣는 작은 크기.
+function speciesIconHtml(speciesId, small = false) { const species = SPECIES[speciesId]; return spriteImgHtml(`pet:${speciesId}`, species.image, species.icon, `pet-sprite${small ? ' small' : ''}`); }
+function buildingIconHtml(type, small = false) { const meta = BUILDING_TYPES[type]; return spriteImgHtml(`building:${type}`, meta.image, meta.icon, `building-sprite${small ? ' small' : ''}`); }
+function resourceIconHtml(key) { return spriteImgHtml(`resource:${key}`, RESOURCES[key].image, RESOURCES[key].icon, 'resource-sprite'); }
+function eggIconHtml() { return spriteImgHtml('decor:egg', DECOR_IMAGES.egg, '🥚', 'egg-sprite'); }
 function speciesLooks(speciesId) { return game.discoveredLooksBySpecies[speciesId] || []; }
 function traitNames(pet) { return pet.traits.map(t => TRAITS[t].name).join(' / ') || '특성 없음'; }
 // 이름을 바꾼 펫은 이름만으로 종족을 알 수 없으므로 종족 이름을 함께 보여 준다(이름이 종족 이름 그대로면 빈 문자열).
@@ -700,14 +704,14 @@ function renderSelectedBuildingPanel() {
   }
   const levelText = meta.output ? `Lv.${building.level}/${CONFIG.maxBuildingLevel}` : `Lv.${building.level}`;
   return `<div class="subheading"><span>선택한 시설</span><span class="count-pill">${levelText}</span></div>
-    <div class="info-box" data-selected-building="${building.id}"><b>${meta.icon} ${meta.name}</b><br>${lines.join('<br>')}</div>${workerList}`;
+    <div class="info-box" data-selected-building="${building.id}"><b>${buildingIconHtml(building.type, true)} ${meta.name}</b><br>${lines.join('<br>')}</div>${workerList}`;
 }
 
 function renderVillageTab() {
   const buildings = game.buildings.map(building => {
     const meta = BUILDING_TYPES[building.type];
     const workers = assignedCount(building.id);
-    if (!meta.output) return `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}<br>마을 주요 시설</small><div class="build-cost">Lv.${building.level}</div><button class="btn secondary" disabled>기본 시설</button></div>`;
+    if (!meta.output) return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>마을 주요 시설</small><div class="build-cost">Lv.${building.level}</div><button class="btn secondary" disabled>기본 시설</button></div>`;
     let upgradeLine = '최대 레벨';
     let upgradeButton = '<button class="btn secondary" style="margin-top:5px" disabled>최대 레벨</button>';
     if (canUpgrade(building)) {
@@ -716,10 +720,10 @@ function renderVillageTab() {
       upgradeLine = `Lv.${building.level + 1} 비용: ${costLabel(cost)}`;
       upgradeButton = `<button class="btn ${affordable ? 'primary' : 'secondary'}" style="margin-top:5px" data-upgrade="${building.id}" ${affordable ? '' : 'disabled'}>업그레이드</button>`;
     }
-    return `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}<br>작업 펫 ${workers}/${meta.capacity}마리</small><div class="build-cost">Lv.${building.level}/${CONFIG.maxBuildingLevel} · 생산량 ×${building.level}<br>${upgradeLine}</div><button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>${upgradeButton}</div>`;
+    return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>작업 펫 ${workers}/${meta.capacity}마리</small><div class="build-cost">Lv.${building.level}/${CONFIG.maxBuildingLevel} · 생산량 ×${building.level}<br>${upgradeLine}</div><button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>${upgradeButton}</div>`;
   }).join('');
   const available = Object.entries(BUILDING_TYPES).filter(([type, meta]) => meta.output && !getBuilding(type));
-  const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${meta.icon}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${costLabel(meta.cost)}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
+  const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${buildingIconHtml(type)}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${costLabel(meta.cost)}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
   return `<h2 class="section-title">마을 관리</h2><p class="section-description">작업장을 세우고 펫을 배치해 마을의 기반을 넓혀보세요.</p>
     ${renderSelectedBuildingPanel()}
     <div class="subheading"><span>건설된 시설</span><span class="count-pill">${game.buildings.length}개</span></div><div class="build-grid">${buildings}</div>
@@ -772,7 +776,7 @@ function renderBreedTab() {
   const breedForm = game.pets.length < 2 ? '<div class="empty-state">교배하려면 펫이 두 마리 이상 필요해요.</div>'
     : `<label class="field-label" for="parentA">첫 번째 부모</label><select class="select" id="parentA">${options(ui.parentA)}</select><label class="field-label" for="parentB">두 번째 부모</label><select class="select" id="parentB">${options(ui.parentB)}</select><div class="info-box" style="margin-top:10px">${full ? `펫과 알의 합이 보관 한도(${CONFIG.maxPets})에 도달했어요. 펫 메뉴에서 펫을 놓아주면 다시 교배할 수 있어요.` : '부모의 속성을 바탕으로 자식 후보가 결정됩니다. 일부 종족은 특정한 부모 조합에서만 태어나고, 새 지역의 종족은 그 지역을 개방한 뒤에만 태어납니다.'}</div><button class="btn primary full" id="breedButton" style="margin-top:12px">교배 시작하기</button>`;
   return `<h2 class="section-title">교배장</h2><p class="section-description">두 펫의 속성과 특성이 다음 세대에 이어질 수 있어요. 성별 제한은 없습니다.</p>
-    ${game.eggs.length ? `<div class="subheading"><span>부화 대기 중인 알</span><span class="count-pill">${game.eggs.length}/${CONFIG.maxEggs}개</span></div>${game.eggs.map(egg => `<div class="egg-card"><span class="egg-icon">🥚</span><span class="egg-info"><strong>정체를 알 수 없는 알</strong><small>부화 결과는 아직 공개되지 않아요.</small></span><span class="egg-time" data-egg-time="${egg.id}">${eggTime(egg)}</span></div>`).join('')}` : '<div class="empty-state">아직 부화 대기 중인 알이 없어요.</div>'}
+    ${game.eggs.length ? `<div class="subheading"><span>부화 대기 중인 알</span><span class="count-pill">${game.eggs.length}/${CONFIG.maxEggs}개</span></div>${game.eggs.map(egg => `<div class="egg-card"><span class="egg-icon">${eggIconHtml()}</span><span class="egg-info"><strong>정체를 알 수 없는 알</strong><small>부화 결과는 아직 공개되지 않아요.</small></span><span class="egg-time" data-egg-time="${egg.id}">${eggTime(egg)}</span></div>`).join('')}` : '<div class="empty-state">아직 부화 대기 중인 알이 없어요.</div>'}
     <div class="subheading"><span>새로운 알 만들기</span><span class="count-pill">부모 각각 에너지 ${CONFIG.breedEnergyCost} 소모</span></div>
     ${breedForm}
     <div class="subheading"><span>교배 규칙</span></div><div class="info-box">• 알이 만들어지는 시점에 결과 데이터가 결정됩니다.<br>• 부화 전까지 종족·외형·특성은 공개되지 않습니다.<br>• 부모 특성 일부가 계승되거나 새로운 특성이 생길 수 있습니다.</div>`;
@@ -1082,6 +1086,11 @@ function toast(message, duration = 2800) {
 }
 
 // 그림 파일(선택 사항). 표에 image가 적힌 항목만 불러오고, 불러오기에 성공한 것만 쓴다.
+// 장식 그림(게임 규칙과 무관). 없거나 불러오지 못하면 나무는 임시 도형으로 그리고 꽃·바위는 그리지 않는다.
+const DECOR_IMAGES = {
+  tree: 'assets/decor/tree.png', pine: 'assets/decor/pine.png', bush: 'assets/decor/bush.png',
+  flowers: 'assets/decor/flowers.png', rock: 'assets/decor/rock.png', egg: 'assets/decor/egg.png'
+};
 const sprites = {};
 function loadSprites() {
   const load = (key, path) => {
@@ -1092,38 +1101,154 @@ function loadSprites() {
     image.onerror = () => { sprite.ready = false; sprite.failed = true; console.warn(`그림을 불러오지 못해 임시 그림으로 표시합니다: ${path}`); };
     image.src = path;
   };
+  rareLookCache.clear();
   Object.entries(SPECIES).forEach(([id, species]) => load(`pet:${id}`, species.image));
   Object.entries(BUILDING_TYPES).forEach(([type, meta]) => load(`building:${type}`, meta.image));
+  Object.entries(RESOURCES).forEach(([key, meta]) => load(`resource:${key}`, meta.image));
+  Object.entries(DECOR_IMAGES).forEach(([name, path]) => load(`decor:${name}`, path));
 }
 function readySprite(key) { const sprite = sprites[key]; return sprite && sprite.ready ? sprite.image : null; }
 
-// Canvas rendering: simple top-down illustrative placeholder art, independent from game rules.
+/* 희귀 외형(특별 무늬 1~3)은 펫 그림 위에 무늬를 입힌 그림으로 그린다(1 줄무늬, 2 물방울, 3 반짝임).
+ * 무늬는 펫 그림의 몸 안쪽에만 칠한다. 한 번 만든 그림은 종족·무늬별로 기억해 다시 쓴다.
+ */
+const rareLookCache = new Map();
+function rareLookVariant(look) {
+  const n = parseInt(String(look).replace(/\D+/g, ''), 10);
+  return Number.isFinite(n) && n > 0 ? ((n - 1) % 3) + 1 : 1;
+}
+function petSpriteFor(pet) {
+  const base = readySprite(`pet:${pet.speciesId}`);
+  if (!base || !pet.appearance) return base;
+  const variant = rareLookVariant(pet.appearance);
+  const key = `${pet.speciesId}:${variant}`;
+  if (rareLookCache.has(key)) return rareLookCache.get(key);
+  const layer = document.createElement('canvas'); layer.width = 48; layer.height = 48;
+  const g = layer.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(base, 0, 0, 48, 48);
+  g.globalCompositeOperation = 'source-atop';
+  if (variant === 1) {
+    g.fillStyle = 'rgba(255,246,214,.42)';
+    for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) if ((x + y) % 8 < 2) g.fillRect(x, y, 1, 1);
+  } else if (variant === 2) {
+    g.fillStyle = 'rgba(255,255,255,.5)';
+    for (let y = 2; y < 48; y += 7) for (let x = (y % 14 === 2 ? 2 : 5); x < 48; x += 7) g.fillRect(x, y, 2, 2);
+  } else {
+    g.fillStyle = 'rgba(255,214,102,.22)'; g.fillRect(0, 0, 48, 48);
+    g.fillStyle = 'rgba(255,250,215,.9)';
+    [[9, 14], [30, 10], [20, 27], [38, 30], [12, 36], [27, 40]].forEach(([x, y]) => { g.fillRect(x, y - 1, 1, 3); g.fillRect(x - 1, y, 3, 1); });
+  }
+  rareLookCache.set(key, layer);
+  return layer;
+}
+
+/* 풀밭과 길: 마을 크기의 1/4 캔버스에 점 단위로 칠한 뒤 4배로 키워 픽셀아트처럼 보이게 한다.
+ * 바뀌지 않는 그림이므로 처음 한 번만 만들어 두고 재사용한다(같은 씨앗값이라 매번 같은 모양).
+ */
+const BACKGROUND_SCALE = 4;
+let backgroundLayer = null;
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hexToRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function buildBackground() {
+  const cols = Math.round(canvas.width / BACKGROUND_SCALE), rows = Math.round(canvas.height / BACKGROUND_SCALE);
+  const layer = document.createElement('canvas'); layer.width = cols; layer.height = rows;
+  const g = layer.getContext('2d');
+  // 길 모양: 예전과 같은 곡선을 작은 캔버스에 그려 "길인 칸" 목록을 만든다.
+  g.strokeStyle = '#000'; g.lineWidth = 58 / BACKGROUND_SCALE; g.lineCap = 'round'; g.beginPath();
+  g.moveTo(cols * .47, rows * .52); g.bezierCurveTo(cols * .38, rows * .58, cols * .39, rows * .76, cols * .24, rows * .83);
+  g.moveTo(cols * .49, rows * .52); g.bezierCurveTo(cols * .62, rows * .53, cols * .68, rows * .64, cols * .81, rows * .7); g.stroke();
+  const mask = g.getImageData(0, 0, cols, rows).data;
+  const path = new Uint8Array(cols * rows);
+  for (let i = 0; i < path.length; i++) path[i] = mask[i * 4 + 3] >= 128 ? 1 : 0;
+  const onPath = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && path[y * cols + x] === 1;
+  // 풀밭: 왼쪽 위는 밝고 오른쪽 아래는 어둡게, 큰 얼룩과 작은 풀포기를 섞는다.
+  const random = seededRandom(20261113);
+  const grass = ['#5f8f54', '#6a9a5c', '#76a664', '#82b26c', '#8ebd75', '#9ac77d'].map(hexToRgb);
+  const tuftDark = hexToRgb('#557f4b'), tuftLight = hexToRgb('#a9d18a');
+  const dirt = ['#cdbf8b', '#d6c995', '#ddd1a0'].map(hexToRgb), dirtEdge = hexToRgb('#b3a271'), pebble = hexToRgb('#bcae80');
+  const cell = 10, gw = Math.ceil(cols / cell) + 2, gh = Math.ceil(rows / cell) + 2;
+  const coarse = Array.from({ length: gw * gh }, () => random());
+  const noise = (x, y) => {
+    const gx = x / cell, gy = y / cell, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+    const v = (i, j) => coarse[(y0 + j) * gw + (x0 + i)];
+    return (v(0, 0) * (1 - fx) + v(1, 0) * fx) * (1 - fy) + (v(0, 1) * (1 - fx) + v(1, 1) * fx) * fy;
+  };
+  const image = g.createImageData(cols, rows);
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    let color;
+    if (onPath(x, y)) {
+      const edge = !onPath(x - 1, y) || !onPath(x + 1, y) || !onPath(x, y - 1) || !onPath(x, y + 1);
+      const r = random();
+      color = edge ? dirtEdge : r < .04 ? pebble : dirt[Math.min(2, Math.floor((noise(cols - 1 - x, rows - 1 - y) * .7 + r * .3) * 3))];
+    } else {
+      const light = 1 - (x / cols + y / rows) / 2;
+      const v = light * .55 + noise(x, y) * .45 + (random() - .5) * .12;
+      color = grass[Math.max(0, Math.min(grass.length - 1, Math.floor(v * grass.length)))];
+      const r = random();
+      if (r < .014) color = tuftDark; else if (r < .024) color = tuftLight;
+    }
+    const i = (y * cols + x) * 4;
+    image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
+  }
+  g.putImageData(image, 0, 0);
+  return { canvas: layer, path, cols, rows };
+}
+function isOnPathPixel(px, py) {
+  if (!backgroundLayer) return false;
+  const x = Math.floor(px / BACKGROUND_SCALE), y = Math.floor(py / BACKGROUND_SCALE);
+  return x >= 0 && y >= 0 && x < backgroundLayer.cols && y < backgroundLayer.rows && backgroundLayer.path[y * backgroundLayer.cols + x] === 1;
+}
+
+/* 장식(나무·덤불·꽃·바위) 자리. 정해진 후보 자리 중에서 길, 광장 주변, 지어진 시설, 화면 왼쪽 아래 안내판과 겹치는 곳은 건너뛴다.
+ * 시설을 새로 지으면 그 자리의 장식은 사라진다(나무를 베고 지은 것처럼).
+ */
+const DECOR_KINDS = ['tree', 'pine', 'bush', 'tree', 'flowers', 'pine', 'rock', 'tree', 'bush', 'flowers'];
+const DECOR_SIZES = { tree: 62, pine: 62, bush: 44, flowers: 34, rock: 36 };
+function decorPlacements() {
+  const w = canvas.width, h = canvas.height, list = [];
+  for (let i = 0; i < 30; i++) {
+    const x = ((i * 211) % (w - 80)) + 40, y = ((i * 127 + 30) % (h - 90)) + 52;
+    const kind = DECOR_KINDS[i % DECOR_KINDS.length], size = DECOR_SIZES[kind];
+    if (Math.abs(x - w * .5) < 110 && Math.abs(y - h * .5) < 90) continue;
+    if (x < 200 && y > h - 80) continue;
+    if ([[-size / 3, 0], [0, 0], [size / 3, 0], [0, -size / 3]].some(([dx, dy]) => isOnPathPixel(x + dx, y + dy))) continue;
+    if (game.buildings.some(b => Math.abs(b.x * w - x) < 64 + size / 3 && y > b.y * h - 80 && y < b.y * h + 60)) continue;
+    if (list.some(d => Math.abs(d.x - x) < (d.size + size) / 2.2 && Math.abs(d.y - y) < 26)) continue;
+    list.push({ kind, x, y, size });
+  }
+  return list;
+}
+function drawDecor(item) {
+  const image = readySprite(`decor:${item.kind}`);
+  ctx.fillStyle = 'rgba(34,74,43,.22)'; ctx.beginPath(); ctx.ellipse(item.x, item.y - 2, item.size * .34, item.size * .12, 0, 0, Math.PI * 2); ctx.fill();
+  if (image) {
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, Math.round(item.x - item.size / 2), Math.round(item.y - item.size), item.size, item.size);
+    ctx.restore();
+  } else if (item.kind === 'tree' || item.kind === 'pine' || item.kind === 'bush') {
+    drawTree(item.x, item.y - 22, item.size / 70);
+  }
+}
+
+// Canvas rendering: 게임 규칙과 분리된 그리기 코드. 화면 아래쪽(앞쪽)에 있는 것일수록 나중에 그려 앞에 보이게 한다.
 function drawVillage() {
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
-  const base = ctx.createLinearGradient(0, 0, w, h);
-  base.addColorStop(0, '#91bd75'); base.addColorStop(1, '#6d9d61');
-  ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
-  // Meadow patches and soft paths
-  for (let i = 0; i < 80; i++) {
-    const x = (i * 137.5) % w, y = (i * 83.7) % h;
-    ctx.fillStyle = i % 2 ? 'rgba(219,239,164,.12)' : 'rgba(39,92,54,.08)';
-    ctx.beginPath(); ctx.ellipse(x, y, 35 + (i % 4) * 7, 15 + (i % 3) * 5, .2, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.strokeStyle = '#d5c994'; ctx.lineWidth = 58; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(w*.47,h*.52); ctx.bezierCurveTo(w*.38,h*.58,w*.39,h*.76,w*.24,h*.83); ctx.moveTo(w*.49,h*.52); ctx.bezierCurveTo(w*.62,h*.53,w*.68,h*.64,w*.81,h*.7); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,246,200,.35)'; ctx.lineWidth = 3; ctx.setLineDash([8,12]); ctx.beginPath(); ctx.moveTo(w*.47,h*.52); ctx.bezierCurveTo(w*.38,h*.58,w*.39,h*.76,w*.24,h*.83); ctx.stroke(); ctx.setLineDash([]);
-  // Decorative trees and flowers
-  for (let i = 0; i < 17; i++) {
-    const x = ((i * 211) % (w - 80)) + 40, y = ((i * 127 + 30) % (h - 90)) + 40;
-    if (Math.abs(x-w*.5) < 100 && Math.abs(y-h*.5) < 80) continue;
-    drawTree(x, y, .72 + (i%3)*.12);
-  }
-  game.buildings.forEach(drawBuilding);
+  if (!backgroundLayer) backgroundLayer = buildBackground();
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(backgroundLayer.canvas, 0, 0, w, h); ctx.restore();
+  const items = [];
+  decorPlacements().forEach(item => items.push({ y: item.y, draw: () => drawDecor(item) }));
+  game.buildings.forEach(building => items.push({ y: building.y * h + 28, draw: () => drawBuilding(building) }));
   // 알은 교배장 옆에 놓는다.
   const nursery = getBuilding('nursery');
   const eggX = nursery ? nursery.x * w + 66 : w * .52, eggY = nursery ? nursery.y * h - 6 : h * .78;
-  game.eggs.forEach((egg, index) => drawEgg(eggX + (index % 2) * 20, eggY + Math.floor(index / 2) * 20));
-  game.pets.forEach(drawPet);
+  game.eggs.forEach((egg, index) => { const ex = eggX + (index % 2) * 22, ey = eggY + Math.floor(index / 2) * 22; items.push({ y: ey + 9, draw: () => drawEgg(ex, ey) }); });
+  game.pets.forEach(pet => items.push({ y: pet.y * h + 16, draw: () => drawPet(pet) }));
+  items.sort((a, b) => a.y - b.y).forEach(item => item.draw());
+  // 시설 이름표는 맨 마지막에 그려 펫이나 나무에 가리지 않게 한다.
+  game.buildings.forEach(drawBuildingLabel);
 }
 function drawTree(x, y, scale) {
   ctx.fillStyle = 'rgba(34,74,43,.22)'; ctx.beginPath(); ctx.ellipse(x+5,y+12,22*scale,10*scale,0,0,Math.PI*2); ctx.fill();
@@ -1157,24 +1282,53 @@ function drawBuilding(building) {
     if(building.type==='plaza'){ctx.fillStyle='#e8d4a7';ctx.beginPath();ctx.arc(x,y-30,8,0,Math.PI*2);ctx.fill();}
   }
   if(!buildingImage){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);}
-  ctx.textAlign='center';ctx.font='bold 12px sans-serif';ctx.fillStyle='#18341e';ctx.fillText(info.name,x,y+43);
-  if(info.capacity){ctx.font='10px sans-serif';ctx.fillStyle='#f3f7e8';ctx.fillText(`${assignedCount(building.id)}/${info.capacity}`,x+34,y+37);}
   if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-6,64,58,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+}
+// 시설 이름표: 어두운 바탕 위에 이름과 작업 펫 수를 쓴다.
+function drawBuildingLabel(building) {
+  const x = Math.round(building.x * canvas.width), y = Math.round(building.y * canvas.height) + 41;
+  const info = BUILDING_TYPES[building.type];
+  const count = info.capacity ? `${assignedCount(building.id)}/${info.capacity}` : '';
+  ctx.save(); ctx.textBaseline = 'middle';
+  ctx.font = 'bold 11px sans-serif'; const nameWidth = ctx.measureText(info.name).width;
+  ctx.font = '10px sans-serif'; const countWidth = count ? ctx.measureText(count).width + 6 : 0;
+  const width = nameWidth + countWidth + 14, left = x - width / 2;
+  ctx.fillStyle = 'rgba(22,38,27,.78)'; roundedRectPath(left, y - 9, width, 18, 9); ctx.fill();
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = '#f3f7e8'; ctx.fillText(info.name, left + 7, y + .5);
+  if (count) { ctx.font = '10px sans-serif'; ctx.fillStyle = '#c9dfb4'; ctx.fillText(count, left + 7 + nameWidth + 6, y + .5); }
+  ctx.restore();
+}
+/* 펫의 자세(화면 연출만). offsetY: 위아래 움직임(음수면 위), tilt: 기울기, squash: 납작해지는 정도.
+ * 쓰다듬기·놀아주기: 폴짝폴짝 / 걷기: 통통 튀며 좌우로 살짝 기우뚱 / 휴식: 숨 쉬듯 / 그 밖: 제자리에서 살랑살랑
+ */
+function petPose(pet) {
+  const effect = activePetEffect(pet.id);
+  if (effect) {
+    const t = (performance.now() - effect.startedAt) / 1000;
+    return { offsetY: -Math.abs(Math.sin(t * (effect.type === 'play' ? 11 : 8))) * (effect.type === 'play' ? 7 : 5), tilt: 0, squash: 0 };
+  }
+  if (isResting(pet)) return { offsetY: 0, tilt: 0, squash: Math.sin(pet.bob * .6) * .035 };
+  if (pet.moving) {
+    const step = pet.bob * 2;
+    return { offsetY: -Math.abs(Math.sin(step)) * 3, tilt: Math.sin(step) * .07, squash: (1 - Math.abs(Math.sin(step))) * .06 };
+  }
+  return { offsetY: Math.sin(pet.bob) * 2, tilt: 0, squash: 0 };
 }
 function drawPet(pet) {
   const x=pet.x*canvas.width, y=pet.y*canvas.height;
   const species=SPECIES[pet.speciesId];
   const resting=isResting(pet);
   const effect=activePetEffect(pet.id);
-  const effectTime=effect ? (performance.now()-effect.startedAt)/1000 : 0;
-  // 쓰다듬기·놀아주기 중에는 폴짝폴짝 뛴다.
-  const bob=effect ? -Math.abs(Math.sin(effectTime*(effect.type==='play'?11:8)))*(effect.type==='play'?7:5) : resting ? 0 : Math.sin(pet.bob)*2;
-  ctx.fillStyle='rgba(30,57,31,.25)';ctx.beginPath();ctx.ellipse(x,y+14,17,7,0,0,Math.PI*2);ctx.fill();
-  const petImage=readySprite(`pet:${pet.speciesId}`);
+  const pose=petPose(pet);
+  const bob=pose.offsetY;
+  ctx.fillStyle='rgba(30,57,31,.25)';ctx.beginPath();ctx.ellipse(x,y+14,17-Math.min(3,-bob*.4),7,0,0,Math.PI*2);ctx.fill();
+  const petImage=petSpriteFor(pet);
   if(petImage){
-    // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다).
+    // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다). 발밑을 기준으로 기울이고 납작하게 만든다.
     // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
-    ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(x),Math.round(y-6+bob));ctx.scale(pet.direction<0?-1:1,1);ctx.drawImage(petImage,-24,-24,48,48);ctx.restore();
+    ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(x),Math.round(y+18+bob));ctx.rotate(pose.tilt);
+    ctx.scale((pet.direction<0?-1:1)*(1+pose.squash),1-pose.squash);ctx.drawImage(petImage,-24,-48,48,48);ctx.restore();
   } else {
     ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();
@@ -1203,7 +1357,12 @@ function drawPet(pet) {
     ctx.restore();
   }
 }
-function drawEgg(x,y){ctx.fillStyle='rgba(44,39,56,.24)';ctx.beginPath();ctx.ellipse(x,y+9,9,4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f8e7c9';ctx.beginPath();ctx.ellipse(x,y,7,9,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c49b82';ctx.lineWidth=1.5;ctx.stroke();}
+function drawEgg(x,y){
+  ctx.fillStyle='rgba(44,39,56,.24)';ctx.beginPath();ctx.ellipse(x,y+9,9,4,0,0,Math.PI*2);ctx.fill();
+  const image=readySprite('decor:egg');
+  if(image){ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(image,Math.round(x)-12,Math.round(y)-14,24,24);ctx.restore();return;}
+  ctx.fillStyle='#f8e7c9';ctx.beginPath();ctx.ellipse(x,y,7,9,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c49b82';ctx.lineWidth=1.5;ctx.stroke();
+}
 function movePets(delta) {
   const seconds=Math.min(delta/1000,.08);
   game.pets.forEach((pet,index)=>{
@@ -1211,9 +1370,10 @@ function movePets(delta) {
     const effect=activePetEffect(pet.id);
     const workingBuilding=isWorking(pet) ? getWorkBuilding(pet) : null;
     if(workingBuilding){
-      // 작업 중: 작업장 앞으로 이동해 머문다.
-      const offset=(index%3-1)*.035;
-      pet.targetX=clamp(workingBuilding.x+offset,.06,.94);pet.targetY=clamp(workingBuilding.y+.08,.08,.9);
+      // 작업 중: 작업장 옆으로 이동해 머문다(첫 번째 펫은 오른쪽, 두 번째 펫은 왼쪽). 시설 이름표를 가리지 않도록 옆에 선다.
+      const slot=game.pets.filter(p=>p.workBuildingId===workingBuilding.id).indexOf(pet);
+      const side=slot%2===0?1:-1;
+      pet.targetX=clamp(workingBuilding.x+side*(.075+Math.floor(slot/2)*.04),.06,.94);pet.targetY=clamp(workingBuilding.y+.045,.08,.9);
       pet.idleTimer=null;
     } else if(isResting(pet)){
       // 휴식 중: 제자리에서 쉰다.

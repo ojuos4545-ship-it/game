@@ -36,3 +36,10 @@
   .btn{padding:11px 12px}
   .build-card .btn{padding:10px 7px}
 }
+/* 시설·자원·알 그림. 확대·축소돼도 점이 또렷하게 보이도록 한다. small은 글자 줄 안에 넣는 크기. */
+.building-sprite{display:block;width:60px;height:50px;image-rendering:pixelated}
+.building-sprite.small{display:inline-block;width:30px;height:25px;vertical-align:-7px;image-rendering:auto}
+.build-card .build-icon{min-height:50px;display:flex;align-items:flex-end}
+.resource-sprite{display:block;width:24px;height:24px;image-rendering:pixelated}
+.egg-sprite{display:block;width:32px;height:32px;image-rendering:pixelated}
+@media(max-width:420px){.resource-sprite{width:20px;height:20px}}

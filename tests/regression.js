@@ -380,6 +380,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.allBuildingsHaveImage = types.every(type => BUILDING_TYPES[type].image === `assets/buildings/${type}.png`);
     out.buildingNotLoaded = types.filter(type => !readySprite(`building:${type}`));
     out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 120 || img.naturalHeight !== 100; });
+    out.resourceWrong = Object.keys(RESOURCES).filter(k => { const img = readySprite(`resource:${k}`); return RESOURCES[k].image !== `assets/resources/${k}.png` || !img || img.naturalWidth !== 48 || img.naturalHeight !== 48; });
+    out.decorWrong = Object.keys(DECOR_IMAGES).filter(k => { const img = readySprite(`decor:${k}`); return DECOR_IMAGES[k] !== `assets/decor/${k}.png` || !img || img.naturalWidth !== 64 || img.naturalHeight !== 64; });
     // 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 불러오지 못하면 임시 그림으로 그린다.
     const real = { bun: SPECIES.sproutbun.image, lamb: SPECIES.pebblelamb.image, otter: SPECIES.dewotter.image, farm: BUILDING_TYPES.farm.image, quarry: BUILDING_TYPES.quarry.image, plaza: BUILDING_TYPES.plaza.image };
     const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8);
@@ -395,24 +397,88 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     BUILDING_TYPES.farm.image = real.farm; BUILDING_TYPES.quarry.image = real.quarry; BUILDING_TYPES.plaza.image = real.plaza;
     Object.keys(sprites).forEach(k => delete sprites[k]);
     loadSprites(); await new Promise(r => setTimeout(r, 400));
-    out.restored = ids.every(id => readySprite(`pet:${id}`)) && types.every(type => readySprite(`building:${type}`));
+    out.restored = ids.every(id => readySprite(`pet:${id}`)) && types.every(type => readySprite(`building:${type}`))
+      && Object.keys(RESOURCES).every(k => readySprite(`resource:${k}`)) && Object.keys(DECOR_IMAGES).every(k => readySprite(`decor:${k}`));
     drawVillage();
     return out;
   });
   check('6-4 펫 그림: 15종 모두 그림 파일(48×48)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
   check('6-4 시설 그림: 6종 모두 그림 파일(120×100)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
+  check('6-6 자원 그림 4종(48×48)·장식 그림 6종(64×64)을 불러옴', sprite.resourceWrong.length === 0 && sprite.decorWrong.length === 0, JSON.stringify({ resource: sprite.resourceWrong, decor: sprite.decorWrong }));
   check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림(펫·시설 모두)', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.buildingBrokenFallsBack && sprite.buildingMissingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
-  // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫과 시설마다 자기 그림이 한 번씩 그려져야 한다.
-  // (파일로 직접 열면 브라우저가 캔버스 픽셀 읽기를 막으므로, 그리기 호출을 세는 방식으로 확인한다.)
+  // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫·시설·장식·알·배경이 각자 자기 그림으로 그려져야 한다.
+  // (파일로 직접 열면 브라우저가 캔버스 픽셀 읽기를 막으므로, 그리기 호출을 기록하는 방식으로 확인한다.)
   const drawn = await page.evaluate(() => {
-    const original = ctx.drawImage; const used = [];
-    ctx.drawImage = function (image, ...rest) { used.push(image); return original.call(this, image, ...rest); };
-    try { drawVillage(); } finally { ctx.drawImage = original; }
-    return { pets: game.pets.length, buildings: game.buildings.length, draws: used.length,
-      petsMatch: game.pets.every(p => used.includes(readySprite(`pet:${p.speciesId}`))), buildingsMatch: game.buildings.every(b => used.includes(readySprite(`building:${b.type}`))) };
+    const realEggs = game.eggs;
+    game.eggs = [{ id: 'egg_test', remainingSeconds: 50, result: { speciesId: 'sproutbun', traits: [], look: null, name: '싹총이' } }];
+    const originalDraw = ctx.drawImage, originalText = ctx.fillText; const log = [];
+    ctx.drawImage = function (image, ...rest) { log.push({ kind: 'image', image, rest }); return originalDraw.call(this, image, ...rest); };
+    ctx.fillText = function (text, ...rest) { log.push({ kind: 'text', text: String(text) }); return originalText.call(this, text, ...rest); };
+    try { drawVillage(); } finally { ctx.drawImage = originalDraw; ctx.fillText = originalText; }
+    game.eggs = realEggs;
+    const images = log.filter(e => e.kind === 'image').map(e => e.image);
+    const countOf = (img) => images.filter(i => i === img).length;
+    const petSources = game.pets.map(p => petSpriteFor(p));
+    const decor = decorPlacements();
+    const decorCounts = {}; decor.forEach(d => { decorCounts[d.kind] = (decorCounts[d.kind] || 0) + 1; });
+    const lastPet = Math.max(...petSources.map(src => log.map((e, i) => e.kind === 'image' && e.image === src ? i : -1).reduce((a, b) => Math.max(a, b), -1)));
+    const labelIdx = game.buildings.map(b => log.findIndex(e => e.kind === 'text' && e.text === BUILDING_TYPES[b.type].name));
+    return {
+      pets: game.pets.length, petsOk: [...new Set(petSources)].every(src => src && countOf(src) === petSources.filter(s => s === src).length),
+      buildings: game.buildings.length, buildingsOk: game.buildings.every(b => countOf(readySprite(`building:${b.type}`)) === game.buildings.filter(o => o.type === b.type).length),
+      background: images[0] === backgroundLayer.canvas && countOf(backgroundLayer.canvas) === 1,
+      decor: decor.length, decorOk: decor.length >= 8 && Object.entries(decorCounts).every(([kind, n]) => countOf(readySprite(`decor:${kind}`)) === n),
+      eggOk: countOf(readySprite('decor:egg')) === 1,
+      labelsAfterPets: labelIdx.every(i => i > lastPet), total: images.length
+    };
   });
-  check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.draws === drawn.pets + drawn.buildings && drawn.petsMatch, JSON.stringify(drawn));
-  check('6-4 시설 그림이 마을 화면에 그려짐(시설마다 한 번)', drawn.draws === drawn.pets + drawn.buildings && drawn.buildingsMatch, JSON.stringify(drawn));
+  check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.petsOk, JSON.stringify(drawn));
+  check('6-4 시설 그림이 마을 화면에 그려짐(시설마다 한 번)', drawn.buildingsOk, JSON.stringify(drawn));
+  check('6-6 장식(나무·덤불·꽃·바위)과 알이 그림으로 그려짐', drawn.decorOk && drawn.eggOk, JSON.stringify(drawn));
+  check('6-6 풀밭·길 배경은 한 번 만든 그림을 맨 먼저 한 번만 그림', drawn.background, JSON.stringify(drawn));
+  check('6-6 시설 이름표는 펫보다 나중에 그려 가리지 않음', drawn.labelsAfterPets, JSON.stringify(drawn));
+  const scene = await page.evaluate(() => {
+    const out = {};
+    // 배경: 1/4 크기 그림을 4배로 키워 그린다. 같은 그림을 재사용하고, 다시 만들어도 같은 모양이다.
+    const first = backgroundLayer; drawVillage(); out.reused = backgroundLayer === first;
+    out.size = [first.cols, first.rows, first.canvas.width, first.canvas.height];
+    const again = buildBackground(); out.sameShape = again.path.length === first.path.length && again.path.every((v, i) => v === first.path[i]);
+    out.pathShare = first.path.reduce((a, b) => a + b, 0) / first.path.length;
+    // 장식은 길·지어진 시설과 겹치지 않는다.
+    const w = canvas.width, h = canvas.height; const decor = decorPlacements();
+    out.decorOnPath = decor.filter(d => isOnPathPixel(d.x, d.y)).length;
+    out.decorOnBuilding = decor.filter(d => game.buildings.some(b => Math.abs(b.x * w - d.x) < 64 && d.y > b.y * h - 80 && d.y < b.y * h + 60)).length;
+    // 시설을 새로 지으면 그 자리의 장식이 사라진다(규칙은 건드리지 않고 그리기만 확인).
+    const spot = decor.find(d => d.kind === 'tree' || d.kind === 'pine');
+    const fake = { id: 'b_test', type: 'lumber', x: spot.x / w, y: (spot.y - 20) / h, level: 1 };
+    game.buildings.push(fake); out.clearedForBuilding = !decorPlacements().some(d => d.x === spot.x && d.y === spot.y); game.buildings.pop();
+    return out;
+  });
+  check('6-6 배경: 1/4 크기(240×150) 픽셀 그림을 재사용, 다시 만들어도 같은 모양', scene.reused && scene.size.join() === '240,150,240,150' && scene.sameShape && scene.pathShare > .05 && scene.pathShare < .2, JSON.stringify(scene));
+  check('6-6 장식은 길·시설과 겹치지 않고, 시설을 지으면 그 자리 장식이 사라짐', scene.decorOnPath === 0 && scene.decorOnBuilding === 0 && scene.clearedForBuilding, JSON.stringify(scene));
+  const motion = await page.evaluate(() => {
+    const pet = game.pets[0]; const saved = { moving: pet.moving, bob: pet.bob, energy: pet.energy, work: pet.workBuildingId, resting: pet.resting };
+    petEffects.clear(); pet.workBuildingId = null; pet.resting = false; pet.energy = pet.maxEnergy;
+    const sample = () => { const poses = []; for (let i = 0; i < 40; i++) { pet.bob = i * .13; poses.push(petPose(pet)); } return poses; };
+    pet.moving = true; const walk = sample();
+    pet.moving = false; const idle = sample();
+    pet.energy = 1; const rest = sample();
+    Object.assign(pet, { moving: saved.moving, bob: saved.bob, energy: saved.energy, workBuildingId: saved.work, resting: saved.resting });
+    const range = (list, key) => Math.max(...list.map(p => p[key])) - Math.min(...list.map(p => p[key]));
+    return { walkHop: range(walk, 'offsetY'), walkTilt: range(walk, 'tilt'), walkUp: walk.every(p => p.offsetY <= 0), idleTilt: range(idle, 'tilt'), restHop: range(rest, 'offsetY'), restTilt: range(rest, 'tilt'), restBreath: range(rest, 'squash') };
+  });
+  check('6-6 걷는 펫은 통통 튀고 기우뚱, 서 있거나 쉬는 펫은 기울지 않음(쉬는 펫은 숨쉬기만)', motion.walkHop > 2 && motion.walkTilt > .1 && motion.walkUp && motion.idleTilt === 0 && motion.restHop === 0 && motion.restTilt === 0 && motion.restBreath > .03, JSON.stringify(motion));
+  const rare = await page.evaluate(() => {
+    const pet = game.pets[0]; const saved = pet.appearance; const base = readySprite(`pet:${pet.speciesId}`);
+    pet.appearance = null; const plain = petSpriteFor(pet);
+    pet.appearance = '특별 무늬 1'; const v1 = petSpriteFor(pet), v1again = petSpriteFor(pet);
+    pet.appearance = '특별 무늬 2'; const v2 = petSpriteFor(pet);
+    pet.appearance = '특별 무늬 3'; const v3 = petSpriteFor(pet);
+    pet.appearance = '이상한 값'; const odd = petSpriteFor(pet);
+    pet.appearance = saved;
+    return { plain: plain === base, variantsDiffer: new Set([v1, v2, v3]).size === 3 && ![v1, v2, v3].includes(base), cached: v1 === v1again, sized: [v1, v2, v3].every(c => c.width === 48 && c.height === 48), oddFallsBack: odd === v1, variants: [1, 2, 3, 4, 'x'].map(n => rareLookVariant(`특별 무늬 ${n}`)).join() };
+  });
+  check('6-6 희귀 외형: 무늬 1~3이 서로 다른 그림, 보통 펫은 원래 그림', rare.plain && rare.variantsDiffer && rare.cached && rare.sized && rare.oddFallsBack && rare.variants === '1,2,3,1,1', JSON.stringify(rare));
 
   // 오른쪽 메뉴와 도감의 종족 아이콘: 그림이 있으면 그림, 없거나 불러오지 못하면 이모지
   const icons = await page.evaluate(async () => {
@@ -445,6 +511,31 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-5 펫 목록·펫 정보에 종족 그림 표시(48×48)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
   check('6-5 도감: 발견한 종족은 그림, 미발견 종족은 ❔', icons.dexFound && icons.dexLocked && icons.dexInfo && icons.found > 0, JSON.stringify({ found: icons.found, locked: icons.locked }));
   check('6-5 그림이 없거나 불러오지 못한 종족은 이모지로 표시', icons.noImage && icons.failedSprite && icons.brokenBecomesEmoji && icons.restored, JSON.stringify(icons));
+
+  // 메뉴의 시설·자원·알 그림: 그림이 있으면 그림, 없거나 불러오지 못하면 이모지
+  const menuIcons = await page.evaluate(async () => {
+    const out = {};
+    activeTab = 'village'; ui.selectedBuildingId = getBuilding('farm').id; renderAll();
+    await new Promise(r => setTimeout(r, 300));
+    const loaded = (img) => !!img && img.complete && img.naturalWidth > 0;
+    const cards = [...document.querySelectorAll('.build-card .build-icon')];
+    out.cards = cards.length; out.cardImgs = cards.filter(n => loaded(n.querySelector('img.building-sprite'))).length;
+    out.selected = loaded(document.querySelector('[data-selected-building] img.building-sprite.small'));
+    const chips = [...document.querySelectorAll('.resource-chip .ico')];
+    out.chips = chips.length; out.chipImgs = chips.filter(n => loaded(n.querySelector('img.resource-sprite'))).length;
+    const realEggs = game.eggs;
+    game.eggs = [{ id: 'egg_menu', remainingSeconds: 50, result: { speciesId: 'sproutbun', traits: [], look: null, name: '싹총이' } }];
+    activeTab = 'breed'; renderAll(); await new Promise(r => setTimeout(r, 200));
+    out.egg = loaded(document.querySelector('.egg-card .egg-icon img.egg-sprite'));
+    game.eggs = realEggs;
+    // 그림이 없거나 불러오지 못하면 이모지
+    const realWood = RESOURCES.wood.image; delete RESOURCES.wood.image; out.noImage = resourceIconHtml('wood') === RESOURCES.wood.icon; RESOURCES.wood.image = realWood;
+    const farmSprite = sprites['building:farm']; farmSprite.failed = true; out.failed = buildingIconHtml('farm') === BUILDING_TYPES.farm.icon; farmSprite.failed = false;
+    activeTab = 'village'; ui.selectedBuildingId = null; renderAll();
+    return out;
+  });
+  check('6-6 마을 메뉴의 시설 카드·선택한 시설에 시설 그림 표시', menuIcons.cards >= 3 && menuIcons.cardImgs === menuIcons.cards && menuIcons.selected, JSON.stringify(menuIcons));
+  check('6-6 상단 자원 4종과 알 카드에 그림 표시, 그림이 없거나 실패하면 이모지', menuIcons.chips === 4 && menuIcons.chipImgs === 4 && menuIcons.egg && menuIcons.noImage && menuIcons.failed, JSON.stringify(menuIcons));
 
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');
