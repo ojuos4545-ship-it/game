@@ -407,6 +407,38 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   });
   check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.draws === drawn.pets && drawn.allMatch, JSON.stringify(drawn));
 
+  // 오른쪽 메뉴와 도감의 종족 아이콘: 그림이 있으면 그림, 없거나 불러오지 못하면 이모지
+  const icons = await page.evaluate(async () => {
+    const out = {};
+    const pet = game.pets[0]; const species = SPECIES[pet.speciesId]; const real = species.image;
+    selectedPetId = pet.id; activeTab = 'pets'; renderAll();
+    const cardImg = document.querySelector('.pet-card.selected .pet-avatar img.pet-sprite');
+    const profileImg = document.querySelector('.pet-profile .pet-avatar img.pet-sprite');
+    out.card = !!cardImg && cardImg.getAttribute('src') === real && cardImg.alt === species.icon;
+    out.profile = !!profileImg && profileImg.getAttribute('src') === real;
+    await new Promise(r => setTimeout(r, 200));
+    out.loaded = !!cardImg && cardImg.complete && cardImg.naturalWidth === 48 && cardImg.getBoundingClientRect().width === 48;
+    out.everyCard = [...document.querySelectorAll('.pet-list .pet-card')].every(card => card.querySelector('.pet-avatar img.pet-sprite'));
+    activeTab = 'dex'; renderAll();
+    out.found = game.discoveredSpecies.length; out.locked = document.querySelectorAll('.dex-card.locked').length;
+    out.dexFound = document.querySelectorAll('.dex-card:not(.locked) .dex-icon img.pet-sprite').length === out.found;
+    out.dexLocked = document.querySelectorAll('.dex-card.locked img').length === 0 && [...document.querySelectorAll('.dex-card.locked .dex-icon')].every(n => n.textContent === '❔');
+    out.dexInfo = document.querySelectorAll('#panelContent .info-box img.pet-sprite.small').length === out.found;
+    // 그림이 없는 종족, 불러오기에 실패한 종족은 이모지
+    delete species.image; out.noImage = speciesIconHtml(pet.speciesId) === species.icon; species.image = real;
+    const sprite = sprites[`pet:${pet.speciesId}`]; sprite.failed = true; out.failedSprite = speciesIconHtml(pet.speciesId) === species.icon; sprite.failed = false;
+    // 화면에 넣은 그림이 깨져 있으면 그 자리에서 이모지로 바뀐다
+    species.image = 'data:image/png;base64,broken'; activeTab = 'pets'; renderAll(); await new Promise(r => setTimeout(r, 400));
+    const avatar = document.querySelector('.pet-card.selected .pet-avatar');
+    out.brokenBecomesEmoji = avatar.textContent === species.icon && !avatar.querySelector('img');
+    species.image = real; renderAll();
+    out.restored = !!document.querySelector('.pet-card.selected .pet-avatar img.pet-sprite');
+    return out;
+  });
+  check('6-5 펫 목록·펫 정보에 종족 그림 표시(48×48)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
+  check('6-5 도감: 발견한 종족은 그림, 미발견 종족은 ❔', icons.dexFound && icons.dexLocked && icons.dexInfo && icons.found > 0, JSON.stringify({ found: icons.found, locked: icons.locked }));
+  check('6-5 그림이 없거나 불러오지 못한 종족은 이모지로 표시', icons.noImage && icons.failedSprite && icons.brokenBecomesEmoji && icons.restored, JSON.stringify(icons));
+
   // ---------- 7. 놓아주기 ----------
   await page.click('[data-tab="pets"]');
   const relBefore = await page.evaluate(() => { selectedPetId = game.pets[game.pets.length - 1].id; renderAll(); return game.pets.length; });
@@ -606,7 +638,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const m = await page.evaluate(() => { const c = canvas.getBoundingClientRect(); const chips = [...document.querySelectorAll('.resource-chip strong')].map(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.right <= innerWidth && n.scrollWidth <= n.clientWidth + 1; }); const st = document.querySelector('.world-stage').getBoundingClientRect(); return { ratio: c.width / c.height, overflowX: document.documentElement.scrollWidth - innerWidth, chips, canvasInStage: c.bottom <= st.bottom + 1 && c.top >= st.top - 1, cw: Math.round(c.width) }; });
     check(`13 ${name} ${vp.width}×${vp.height}: 캔버스 비율 유지·가로 넘침 없음·자원 숫자 보임`, Math.abs(m.ratio - 1.6) < .02 && m.overflowX <= 0 && m.chips.every(Boolean) && m.canvasInStage, JSON.stringify(m));
     if (vp.width < 800) {
-      const tgt = await page.evaluate(() => { const p = game.pets[1]; const r = canvas.getBoundingClientRect(); return { id: p.id, x: r.left + p.x * r.width + 12, y: r.top + p.y * r.height + 10 }; });
+      // 누르는 지점 가까이에 다른 펫이 우연히 있으면 그 펫이 선택돼(가장 가까운 펫 선택 규칙) 결과가 실행마다 달라지므로, 다른 펫은 반대편 구석으로 옮겨 둔다.
+      const tgt = await page.evaluate(() => { const p = game.pets[1]; game.pets.forEach(o => { if (o !== p) { o.x = p.x < .5 ? .85 : .15; o.y = p.y < .5 ? .85 : .15; o.targetX = o.x; o.targetY = o.y; } }); const r = canvas.getBoundingClientRect(); return { id: p.id, x: r.left + p.x * r.width + 12, y: r.top + p.y * r.height + 10 }; });
       await page.mouse.click(tgt.x, tgt.y);
       check(`13 ${name}: 축소된 캔버스에서도 펫 누르기 가능`, await page.evaluate((id) => selectedPetId === id, tgt.id));
       await page.click('[data-tab="breed"]'); await page.click('#breedButton');

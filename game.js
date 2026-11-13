@@ -641,6 +641,14 @@ function energyText(pet) { return `${Math.round(pet.energy)}/${pet.maxEnergy} �
 function speciesElements(species) { return [species.element, species.element2].filter(id => ELEMENTS[id]); }
 function elementNames(species) { return speciesElements(species).map(id => ELEMENTS[id].label).join('·'); }
 function elementLabel(species) { return speciesElements(species).map(id => `${ELEMENTS[id].icon} ${ELEMENTS[id].label}`).join(' · '); }
+// 오른쪽 메뉴에 쓰는 종족 아이콘. 그림 파일이 있으면 그림으로, 없거나 불러오지 못했으면 이모지로 보여 준다.
+// small: 글자 줄 안에 넣는 작은 크기.
+function speciesIconHtml(speciesId, small = false) {
+  const species = SPECIES[speciesId];
+  const sprite = sprites[`pet:${speciesId}`];
+  if (!species.image || (sprite && sprite.failed)) return species.icon;
+  return `<img class="pet-sprite${small ? ' small' : ''}" src="${escapeHtml(species.image)}" alt="${species.icon}" draggable="false" onerror="this.replaceWith(this.alt)">`;
+}
 function speciesLooks(speciesId) { return game.discoveredLooksBySpecies[speciesId] || []; }
 function traitNames(pet) { return pet.traits.map(t => TRAITS[t].name).join(' / ') || '특성 없음'; }
 // 이름을 바꾼 펫은 이름만으로 종족을 알 수 없으므로 종족 이름을 함께 보여 준다(이름이 종족 이름 그대로면 빈 문자열).
@@ -655,7 +663,7 @@ function renderPetCard(pet) {
   const species = SPECIES[pet.speciesId];
   const selected = selectedPetId === pet.id ? 'selected' : '';
   return `<button class="pet-card ${selected}" data-pet-id="${pet.id}">
-    <span class="pet-avatar">${species.icon}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementNames(species)} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
+    <span class="pet-avatar">${speciesIconHtml(pet.speciesId)}</span><span class="pet-main"><span class="pet-name">${escapeHtml(pet.name)}${pet.appearance ? ' ✦' : ''}</span><span class="pet-detail">${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementNames(species)} · ${traitNames(pet)}</span><span class="energy-track"><i data-live-energy="${pet.id}" style="width:${energyPercent(pet)}%"></i></span></span><span class="pet-state" data-live-state="${pet.id}">${petStateLabel(pet)}</span>
   </button>`;
 }
 
@@ -731,7 +739,7 @@ function renderSelectedPetPanel() {
   const canRelease = game.pets.length > CONFIG.minPets;
   const nameValue = ui.pendingName && ui.pendingName.petId === pet.id ? ui.pendingName.value : pet.name;
   return `<div class="subheading"><span>선택한 펫 관리</span><span class="count-pill" data-live-energy-text="${pet.id}">${energyText(pet)}</span></div>
-    <div class="pet-profile"><div class="pet-profile-head"><span class="pet-avatar">${species.icon}</span><div><strong>${escapeHtml(pet.name)}</strong><small>${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementLabel(species)} · ${RARITIES[species.rarity].label} · <span data-live-state="${pet.id}">${petStateLabel(pet)}</span></small></div></div>
+    <div class="pet-profile"><div class="pet-profile-head"><span class="pet-avatar">${speciesIconHtml(pet.speciesId)}</span><div><strong>${escapeHtml(pet.name)}</strong><small>${renamedSpeciesName(pet) ? `${renamedSpeciesName(pet)} · ` : ''}${elementLabel(species)} · ${RARITIES[species.rarity].label} · <span data-live-state="${pet.id}">${petStateLabel(pet)}</span></small></div></div>
       <div class="pet-profile-row">${traitChips}</div>
       <div class="pet-profile-row"><small>잘하는 일: ${goodAt}${pet.appearance ? ` · 희귀 외형: ${escapeHtml(pet.appearance)} ✦` : ''}</small></div></div>
     <label class="field-label" for="workSelect">작업장 배치</label><select class="select" id="workSelect"><option value="">자유 생활</option>${buildings.map(b => `<option value="${b.id}" ${chosen === b.id ? 'selected' : ''}>${BUILDING_TYPES[b.type].name} (${assignedCount(b.id)}/${BUILDING_TYPES[b.type].capacity})${hasAffinity(pet, b.type) ? ' · 적성 ★' : ''}</option>`).join('')}</select>
@@ -781,11 +789,11 @@ function renderDexTab() {
       const found = game.discoveredSpecies.includes(id);
       const byElements = Object.values(BREEDING_RULES.elementPairs).some(list => list.some(entry => entry.speciesId === id));
       const hint = !open ? '지역 미개방' : !species.breedOnly ? '발견 조건 미확인' : byElements ? '특별한 속성 조합 필요' : '특별한 부모 조합 필요';
-      return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? species.icon : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${elementNames(species)} · ${RARITIES[species.rarity].label}${speciesLooks(id).length ? ` · ✦${speciesLooks(id).length}` : ''}` : hint}</small></div>`;
+      return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? speciesIconHtml(id) : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${elementNames(species)} · ${RARITIES[species.rarity].label}${speciesLooks(id).length ? ` · ✦${speciesLooks(id).length}` : ''}` : hint}</small></div>`;
     }).join('');
     return `<div class="subheading" data-dex-region="${regionId}"><span>${open ? region.icon : '🌫️'} ${region.name}</span><span class="count-pill">${foundCount} / ${ids.length}</span></div><div class="dex-grid">${cards}</div>`;
   }).join('');
-  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div>${groups}<div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${SPECIES[id].icon} ${SPECIES[id].name}</b> · ${elementNames(SPECIES[id])} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span>${speciesLooks(id).length ? `<br>✦ 희귀 외형 ${speciesLooks(id).length}/${CONFIG.rareLookVariants}: ${speciesLooks(id).slice().sort().map(escapeHtml).join(', ')}` : ''}</div>`).join('')}`;
+  return `<h2 class="section-title">종족 도감</h2><p class="section-description">처음 발견한 종족은 자동으로 기록됩니다.</p><div class="stat-grid"><div class="stat"><span>발견 종족</span><strong>${game.discoveredSpecies.length} / ${Object.keys(SPECIES).length}</strong></div><div class="stat"><span>발견한 희귀 외형</span><strong>${game.discoveredLooks.length}종</strong></div></div>${groups}<div class="subheading"><span>발견한 종족 정보</span></div>${game.discoveredSpecies.map(id => `<div class="info-box" style="margin-bottom:7px"><b>${speciesIconHtml(id, true)} ${SPECIES[id].name}</b> · ${elementNames(SPECIES[id])} 속성 · ${RARITIES[SPECIES[id].rarity].label}<br><span style="color:#adbea9">${SPECIES[id].description}</span>${speciesLooks(id).length ? `<br>✦ 희귀 외형 ${speciesLooks(id).length}/${CONFIG.rareLookVariants}: ${speciesLooks(id).slice().sort().map(escapeHtml).join(', ')}` : ''}</div>`).join('')}`;
 }
 
 // 화면 전체를 다시 그린다. 버튼을 누르거나 알이 부화하는 등 "구성"이 바뀔 때만 호출한다.
@@ -1078,9 +1086,9 @@ function loadSprites() {
   const load = (key, path) => {
     if (!path || sprites[key]) return;
     const image = new Image();
-    const sprite = sprites[key] = { image, ready: false };
+    const sprite = sprites[key] = { image, ready: false, failed: false };
     image.onload = () => { sprite.ready = true; };
-    image.onerror = () => { sprite.ready = false; console.warn(`그림을 불러오지 못해 임시 그림으로 표시합니다: ${path}`); };
+    image.onerror = () => { sprite.ready = false; sprite.failed = true; console.warn(`그림을 불러오지 못해 임시 그림으로 표시합니다: ${path}`); };
     image.src = path;
   };
   Object.entries(SPECIES).forEach(([id, species]) => load(`pet:${id}`, species.image));
