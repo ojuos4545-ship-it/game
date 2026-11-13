@@ -107,7 +107,7 @@ const RARITIES = {
 /* 그림 교체 방법 (종족 표 SPECIES와 시설 표 BUILDING_TYPES 공통)
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
- * 그림 크기: 펫 32×32, 시설 60×50, 자원 24×24 (투명 배경 PNG). 마을 화면에는 2배로 키워 그린다(한 점 = 화면 2칸).
+ * 그림 크기: 펫 28×28, 시설 60×50, 자원 24×24 (투명 배경 PNG). 마을 화면에는 2배로 키워 그린다(한 점 = 화면 2칸).
  * 진한 외곽선·쨍한 색으로 다듬는 방법은 tools/bold_pixels.py에 있다. 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
  * 펫 15종은 assets/pets, 시설 6종은 assets/buildings, 자원 4종(RESOURCES)은 assets/resources 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
  * 나무·꽃·바위·알 같은 장식 그림은 게임 데이터가 아니므로 아래 그리기 코드의 DECOR_IMAGES에 있다.
@@ -1330,7 +1330,7 @@ function drawPet(pet) {
   if(petImage){
     // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다). 발밑을 기준으로 기울이고 납작하게 만든다.
     // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
-    // 그림 크기의 2배로 그린다(32칸 그림 → 화면 64칸).
+    // 그림 크기의 2배로 그린다(28칸 그림 → 화면 56칸).
     const w=(petImage.naturalWidth||petImage.width)*2,h=(petImage.naturalHeight||petImage.height)*2;
     ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(x),Math.round(y+18+bob));ctx.rotate(pose.tilt);
     ctx.scale((pet.direction<0?-1:1)*(1+pose.squash),1-pose.squash);ctx.drawImage(petImage,-w/2,-h,w,h);ctx.restore();
@@ -1345,10 +1345,10 @@ function drawPet(pet) {
     ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(species.icon,x,y-23+bob);
   }
   ctx.textAlign='center';
-  if(isWorking(pet)){ctx.fillStyle='#f0cf75';ctx.beginPath();ctx.arc(x+20,y-24,4,0,Math.PI*2);ctx.fill();}
-  if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+22,y-24+Math.sin(pet.bob*.5)*2);}
-  if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-22,y-28+bob);}
-  if(selectedPetId===pet.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y-6,28,28,0,0,Math.PI*2);ctx.stroke();}
+  if(isWorking(pet)){ctx.fillStyle='#f0cf75';ctx.beginPath();ctx.arc(x+18,y-21,4,0,Math.PI*2);ctx.fill();}
+  if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+20,y-21+Math.sin(pet.bob*.5)*2);}
+  if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-20,y-25+bob);}
+  if(selectedPetId===pet.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y-4,25,25,0,0,Math.PI*2);ctx.stroke();}
   if(effect){
     // 머리 위로 떠오르며 사라지는 하트(쓰다듬기) 또는 음표(놀아주기)
     const progress=clamp((performance.now()-effect.startedAt)/(effect.until-effect.startedAt),0,1);
@@ -1357,7 +1357,7 @@ function drawPet(pet) {
     for(let i=0;i<3;i++){
       const p=(progress*(effect.type==='play'?3:1.5)+i/3)%1;
       ctx.globalAlpha=1-p;
-      ctx.fillText(mark,x+(i-1)*13+Math.sin((p+i)*6)*3,y-46-p*24);
+      ctx.fillText(mark,x+(i-1)*13+Math.sin((p+i)*6)*3,y-42-p*24);
     }
     ctx.restore();
   }

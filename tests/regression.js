@@ -376,7 +376,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const ids = Object.keys(SPECIES); const types = Object.keys(BUILDING_TYPES);
     out.allPetsHaveImage = ids.every(id => SPECIES[id].image === `assets/pets/${id}.png`);
     out.notLoaded = ids.filter(id => !readySprite(`pet:${id}`));
-    out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 32 || img.naturalHeight !== 32; });
+    out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 28 || img.naturalHeight !== 28; });
     out.allBuildingsHaveImage = types.every(type => BUILDING_TYPES[type].image === `assets/buildings/${type}.png`);
     out.buildingNotLoaded = types.filter(type => !readySprite(`building:${type}`));
     out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 60 || img.naturalHeight !== 50; });
@@ -402,7 +402,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     drawVillage();
     return out;
   });
-  check('6-4 펫 그림: 15종 모두 그림 파일(32×32)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
+  check('6-4 펫 그림: 15종 모두 그림 파일(28×28)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
   check('6-4 시설 그림: 6종 모두 그림 파일(60×50)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
   check('6-6 자원 그림 4종(24×24)·장식 그림 6종(나무 32, 덤불 22, 꽃·바위 18, 알 12)을 불러옴', sprite.resourceWrong.length === 0 && sprite.decorWrong.length === 0, JSON.stringify({ resource: sprite.resourceWrong, decor: sprite.decorWrong }));
   check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림(펫·시설 모두)', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.buildingBrokenFallsBack && sprite.buildingMissingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
@@ -496,7 +496,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.card = !!cardImg && cardImg.getAttribute('src') === real && cardImg.alt === species.icon;
     out.profile = !!profileImg && profileImg.getAttribute('src') === real;
     await new Promise(r => setTimeout(r, 200));
-    out.loaded = !!cardImg && cardImg.complete && cardImg.naturalWidth === 32 && cardImg.getBoundingClientRect().width === 48;
+    out.loaded = !!cardImg && cardImg.complete && cardImg.naturalWidth === 28 && cardImg.getBoundingClientRect().width === 48;
     out.everyCard = [...document.querySelectorAll('.pet-list .pet-card')].every(card => card.querySelector('.pet-avatar img.pet-sprite'));
     activeTab = 'dex'; renderAll();
     out.found = game.discoveredSpecies.length; out.locked = document.querySelectorAll('.dex-card.locked').length;
@@ -514,7 +514,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.restored = !!document.querySelector('.pet-card.selected .pet-avatar img.pet-sprite');
     return out;
   });
-  check('6-5 펫 목록·펫 정보에 종족 그림 표시(32칸 그림을 48px로)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
+  check('6-5 펫 목록·펫 정보에 종족 그림 표시(28칸 그림을 48px로)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
   check('6-5 도감: 발견한 종족은 그림, 미발견 종족은 ❔', icons.dexFound && icons.dexLocked && icons.dexInfo && icons.found > 0, JSON.stringify({ found: icons.found, locked: icons.locked }));
   check('6-5 그림이 없거나 불러오지 못한 종족은 이모지로 표시', icons.noImage && icons.failedSprite && icons.brokenBecomesEmoji && icons.restored, JSON.stringify(icons));
 
