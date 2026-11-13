@@ -13,7 +13,7 @@
 |---|---|
 | 게임 | PC 브라우저용 펫 수집·교배·육성 시뮬레이션. `index.html`을 열면 바로 실행된다(서버·설치 불필요) |
 | 개발 단계 | 개발 길라잡이 10단계 중 **9단계 완료, 10단계 중 그림 교체 완료**. 남은 것은 밸런스 조정과 종족 이름 확정 |
-| 자동 검사 | `node tests/regression.js` → **총 167개 중 통과 167, 실패 0** (2026-11-13 기준) |
+| 자동 검사 | `node tests/regression.js` → **총 168개 중 통과 168, 실패 0** (2026-11-13 기준) |
 | 최신 코드 위치 | GitHub `ojuos4545-ship-it/game` 저장소의 **`claude/fervent-sagan-ghojpc` 브랜치**. `main`보다 커밋 8개(이 인계 문서 커밋 포함) 앞서 있고 아직 `main`에 합치지 않았다 |
 | 버전 표기 | 화면 하단 `EARLY PLAYABLE BUILD · v0.3` |
 | 저장 데이터 | 브라우저 `localStorage`의 `little-haven-save-v1` 키, 구조 버전 1. v0.1 저장부터 그대로 이어서 불러온다 |
@@ -122,6 +122,7 @@
    - 겹침 순서, 시설 이름표, 작업 펫 위치
    - 걷기·숨쉬기 동작, 희귀 외형 무늬
    - 메뉴 아이콘
+   - 그 뒤 사용자가 품질이 마음에 들지 않는다고 해서 **"슬달이 방식"으로 통일**했다. 진한 외곽선, 쨍한 색, 절반 크기 그림을 2배로 그리고, 짙은 초록 배경으로 바꿨다. 경위는 `IMPLEMENTATION_STATUS.md` 8장에 있다.
 5. **검사 자체 수정 1건**: "작은 화면에서 펫 누르기" 검사가 펫 두 마리가 우연히 겹칠 때 실패했다. 원인을 재현해 확인했고, 검사만 고쳤다. 확인하는 내용은 같다.
 
 ---
@@ -134,13 +135,14 @@ game/
 ├─ style.css             화면 디자인
 ├─ game.js               게임 전체(데이터, 규칙, 저장, 화면 그리기) — 약 1,480줄
 ├─ assets/
-│  ├─ pets/              펫 그림 15장 (48×48 투명 PNG, 파일 이름 = 종족 ID)
-│  ├─ buildings/         시설 그림 6장 (120×100, 파일 이름 = 시설 ID)
-│  ├─ decor/             tree, pine, bush, flowers, rock, egg (64×64)
-│  └─ resources/         wood, stone, plant, ore (48×48)
-├─ tests/regression.js   자동 검사 167개 (실제 Chromium으로 게임을 조작)
+│  ├─ pets/              펫 그림 15장 (32×32 투명 PNG, 파일 이름 = 종족 ID, 화면에는 2배)
+│  ├─ buildings/         시설 그림 6장 (60×50, 파일 이름 = 시설 ID, 화면에는 2배)
+│  ├─ decor/             tree·pine 32, bush 22, flowers·rock 18, egg 12 (화면에는 2배)
+│  └─ resources/         wood, stone, plant, ore (24×24)
+├─ tests/regression.js   자동 검사 168개 (실제 Chromium으로 게임을 조작)
 ├─ tools/
 │  ├─ slice_sprites.py       여러 그림이 든 한 장을 하나씩 잘라 투명 PNG로 만드는 도구
+│  ├─ bold_pixels.py         잘라 낸 그림을 진한 외곽선·쨍한 색으로 다듬는 도구(슬달이 방식)
 │  └─ build_single_html.py   게임 전체를 HTML 파일 하나로 묶는 도구
 ├─ package.json / package-lock.json   검사용 Playwright 버전 기록 (게임 실행에는 불필요)
 ├─ AGENTS.md             GPT/Codex용 작업 규칙 (CLAUDE.md와 같은 내용)
@@ -300,7 +302,7 @@ npx playwright install chromium
 node tests/regression.js
 ```
 
-- 마지막 줄이 `총 167개 중 통과 167, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
+- 마지막 줄이 `총 168개 중 통과 168, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
 - 실제 Chromium 브라우저로 버튼을 누르고, 브라우저 시계만 앞으로 돌려 시간 경과를 흉내 낸다. 배포용 수치는 바꾸지 않는다.
 - 끝날 때 화면 크기별 스크린샷을 임시 폴더에 남긴다.
 
@@ -342,12 +344,14 @@ node tests/regression.js
 
 | 폴더 | 내용 | 크기 | 연결된 곳 |
 |---|---|---|---|
-| `assets/pets` | 종족 15종 | 48×48 | `SPECIES[id].image` |
-| `assets/buildings` | 시설 6종 | 120×100 | `BUILDING_TYPES[id].image` |
-| `assets/decor` | tree, pine, bush, flowers, rock, egg | 64×64 | 그리기 코드의 `DECOR_IMAGES` |
-| `assets/resources` | wood, stone, plant, ore | 48×48 | `RESOURCES[id].image` |
+| `assets/pets` | 종족 15종 | 32×32 | `SPECIES[id].image` |
+| `assets/buildings` | 시설 6종 | 60×50 | `BUILDING_TYPES[id].image` |
+| `assets/decor` | tree, pine, bush, flowers, rock, egg | 32, 32, 22, 18, 18, 12 | 그리기 코드의 `DECOR_IMAGES` |
+| `assets/resources` | wood, stone, plant, ore | 24×24 | `RESOURCES[id].image` |
 
-- **풀밭·길**은 그림 파일이 아니라 코드(`buildBackground()`)로 그린다. 1/4 크기(240×150)에 고정 씨앗값으로 점을 찍어 4배로 키우므로 항상 같은 모양이다.
+- **그림 방식(사용자가 고른 "슬달이 방식")**: 진한 1칸 외곽선, 쨍한 색, 적은 색 수. 마을 화면에는 그림 크기의 **정확히 2배**로 그려 한 점이 화면 2칸이 되도록 통일한다. 새 그림도 이 규칙을 따라야 화면이 어울린다.
+
+- **풀밭·길**은 그림 파일이 아니라 코드(`buildBackground()`)로 그린다. 1/4 크기(240×150)에 고정 씨앗값으로 점을 찍어 4배로 키우므로 항상 같은 모양이다. 짙은 초록에 잔무늬를 적게 해서 펫이 또렷이 보이게 했다.
 - **희귀 외형 무늬**(1 줄무늬, 2 물방울, 3 반짝임)도 코드(`petSpriteFor()`)로 펫 그림 위에 입힌다. 마을 화면에만 보이고, 메뉴에서는 ✦ 표시만 한다.
 - **그림이 없거나 불러오지 못하면** 예전 임시 그림(도형)으로, 메뉴는 이모지로 표시한다.
 - 그림을 바꾸려면 **같은 이름·같은 크기의 투명 PNG로 덮어쓰면** 된다. 펫은 **오른쪽을 보게** 그린다(왼쪽으로 갈 때 자동으로 뒤집는다). 발이 그림 맨 아래에 닿게 둔다.
@@ -357,17 +361,26 @@ node tests/regression.js
 - **도구**: Higgsfield(이미지 생성 서비스)의 `seedream_5_0_flash` 모델, 4:3 비율, 1k 해상도. 장당 0.5 크레딧이고, 모두 6장을 써서 남은 크레딧은 2.8이다(무료 요금제).
 - **그림체 맞추기**: 한 장에 여러 개를 그리게 했다. 첫 장(초원 펫 6종)을 만든 뒤, 나머지는 모두 그 첫 장을 **참고 그림**으로 넣어 같은 그림체로 만들었다. 인계 압축 파일의 `reference_sheets/sheet_meadow.png`가 그 첫 장이다. GPT 이미지 생성으로 이어 만들 때도 이 그림을 참고로 올리면 그림체를 맞추기 쉽다.
 - **배경**: 단색 자홍색(마젠타) 배경으로 생성한 뒤 도구로 배경을 지웠다.
-- **자르기 도구**: `tools/slice_sprites.py`. Python, Pillow, numpy가 필요하다.
+- **자르기 → 다듬기 두 단계**: `tools/slice_sprites.py`로 자르고 `tools/bold_pixels.py`로 다듬는다. Python, Pillow, numpy가 필요하다.
 
 ```bash
-python3 tools/slice_sprites.py 시트.png assets/pets sproutbun,pebblelamb,dewotter,breezefox,embergecko,sparkchick 2
+python3 tools/slice_sprites.py 시트.png 임시폴더 sproutbun,pebblelamb,dewotter,breezefox,embergecko,sparkchick 2 32 32
 ```
 
 ```bash
-python3 tools/slice_sprites.py 시트.png assets/buildings plaza,nursery,farm,lumber,quarry,smelter 2 120 100
+python3 tools/bold_pixels.py 임시폴더 assets/pets --colors 14
 ```
 
-- 인자는 `시트 출력폴더 이름목록 행수 [가로 세로]` 순서다. 가로·세로를 생략하면 48×48이다.
+```bash
+python3 tools/slice_sprites.py 시트.png 임시폴더 plaza,nursery,farm,lumber,quarry,smelter 2 60 50
+```
+
+```bash
+python3 tools/bold_pixels.py 임시폴더 assets/buildings --colors 24 --saturation 1.25
+```
+
+- 자르기 도구의 인자는 `시트 출력폴더 이름목록 행수 [가로 세로]` 순서다. 가로·세로를 생략하면 48×48이다.
+- 다듬기 값: 펫 색 14개, 시설 색 24개·채도 1.25, 장식 색 18개·채도 1.35, 자원 색 14개·채도 1.3. 장식은 나무 32, 덤불 22, 꽃·바위 18, 알 12 크기로 자른다.
 - 배경과 발밑 그림자를 지운 뒤, 큰 덩어리를 이름 수만큼 골라 위→아래, 왼쪽→오른쪽 순으로 이름을 붙인다.
 - 그림 사이에 번호 글자가 같이 그려져도 작은 덩어리라 버려진다.
 - 배경보다 밝은 분홍(연꽃 봉오리 등)은 지우지 않는다.

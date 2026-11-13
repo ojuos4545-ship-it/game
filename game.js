@@ -107,7 +107,8 @@ const RARITIES = {
 /* 그림 교체 방법 (종족 표 SPECIES와 시설 표 BUILDING_TYPES 공통)
  * 항목에 image: 'assets/pets/sproutbun.png' 처럼 그림 파일 경로를 적으면 임시 그림 대신 그 그림으로 그린다.
  * image가 없거나 파일을 불러오지 못한 항목은 지금의 임시 그림(도형과 이모지)으로 그린다.
- * 권장 크기: 펫 48×48, 시설 120×100 (투명 배경 PNG). 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
+ * 그림 크기: 펫 32×32, 시설 60×50, 자원 24×24 (투명 배경 PNG). 마을 화면에는 2배로 키워 그린다(한 점 = 화면 2칸).
+ * 진한 외곽선·쨍한 색으로 다듬는 방법은 tools/bold_pixels.py에 있다. 펫은 오른쪽을 보게 그린다(왼쪽으로 갈 때는 자동으로 뒤집는다).
  * 펫 15종은 assets/pets, 시설 6종은 assets/buildings, 자원 4종(RESOURCES)은 assets/resources 폴더의 그림을 쓴다(파일 이름은 표의 ID와 같다).
  * 나무·꽃·바위·알 같은 장식 그림은 게임 데이터가 아니므로 아래 그리기 코드의 DECOR_IMAGES에 있다.
  * 시설 그림은 아래쪽 가운데가 시설 위치에 오도록 그린다. 땅에 닿는 부분을 그림 맨 아래에 맞춘다.
@@ -1123,19 +1124,20 @@ function petSpriteFor(pet) {
   const variant = rareLookVariant(pet.appearance);
   const key = `${pet.speciesId}:${variant}`;
   if (rareLookCache.has(key)) return rareLookCache.get(key);
-  const layer = document.createElement('canvas'); layer.width = 48; layer.height = 48;
-  const g = layer.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(base, 0, 0, 48, 48);
+  const w = base.naturalWidth || base.width, h = base.naturalHeight || base.height;
+  const layer = document.createElement('canvas'); layer.width = w; layer.height = h;
+  const g = layer.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(base, 0, 0, w, h);
   g.globalCompositeOperation = 'source-atop';
   if (variant === 1) {
-    g.fillStyle = 'rgba(255,246,214,.42)';
-    for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) if ((x + y) % 8 < 2) g.fillRect(x, y, 1, 1);
+    g.fillStyle = 'rgba(255,246,214,.45)';
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if ((x + y) % 6 < 1) g.fillRect(x, y, 1, 1);
   } else if (variant === 2) {
-    g.fillStyle = 'rgba(255,255,255,.5)';
-    for (let y = 2; y < 48; y += 7) for (let x = (y % 14 === 2 ? 2 : 5); x < 48; x += 7) g.fillRect(x, y, 2, 2);
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    for (let y = 2; y < h; y += 5) for (let x = (y % 10 === 2 ? 2 : 4); x < w; x += 5) g.fillRect(x, y, 1, 1);
   } else {
-    g.fillStyle = 'rgba(255,214,102,.22)'; g.fillRect(0, 0, 48, 48);
-    g.fillStyle = 'rgba(255,250,215,.9)';
-    [[9, 14], [30, 10], [20, 27], [38, 30], [12, 36], [27, 40]].forEach(([x, y]) => { g.fillRect(x, y - 1, 1, 3); g.fillRect(x - 1, y, 3, 1); });
+    g.fillStyle = 'rgba(255,214,102,.22)'; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,250,215,.95)';
+    [[.2, .3], [.62, .22], [.42, .56], [.78, .62], [.26, .76], [.56, .84]].forEach(([fx, fy]) => { const x = Math.round(fx * w), y = Math.round(fy * h); g.fillRect(x, y - 1, 1, 3); g.fillRect(x - 1, y, 3, 1); });
   }
   rareLookCache.set(key, layer);
   return layer;
@@ -1165,9 +1167,9 @@ function buildBackground() {
   const onPath = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && path[y * cols + x] === 1;
   // 풀밭: 왼쪽 위는 밝고 오른쪽 아래는 어둡게, 큰 얼룩과 작은 풀포기를 섞는다.
   const random = seededRandom(20261113);
-  const grass = ['#5f8f54', '#6a9a5c', '#76a664', '#82b26c', '#8ebd75', '#9ac77d'].map(hexToRgb);
-  const tuftDark = hexToRgb('#557f4b'), tuftLight = hexToRgb('#a9d18a');
-  const dirt = ['#cdbf8b', '#d6c995', '#ddd1a0'].map(hexToRgb), dirtEdge = hexToRgb('#b3a271'), pebble = hexToRgb('#bcae80');
+  const grass = ['#2a7136', '#2e7a3b', '#32823f', '#368a43', '#3a9147', '#3f984b'].map(hexToRgb);
+  const tuftDark = hexToRgb('#246530'), tuftLight = hexToRgb('#4fa857');
+  const dirt = ['#c9a96b', '#d1b376', '#d8bd82'].map(hexToRgb), dirtEdge = hexToRgb('#8f7244'), pebble = hexToRgb('#b4945b');
   const cell = 10, gw = Math.ceil(cols / cell) + 2, gh = Math.ceil(rows / cell) + 2;
   const coarse = Array.from({ length: gw * gh }, () => random());
   const noise = (x, y) => {
@@ -1184,10 +1186,10 @@ function buildBackground() {
       color = edge ? dirtEdge : r < .04 ? pebble : dirt[Math.min(2, Math.floor((noise(cols - 1 - x, rows - 1 - y) * .7 + r * .3) * 3))];
     } else {
       const light = 1 - (x / cols + y / rows) / 2;
-      const v = light * .55 + noise(x, y) * .45 + (random() - .5) * .12;
+      const v = light * .35 + noise(x, y) * .65 + (random() - .5) * .05;
       color = grass[Math.max(0, Math.min(grass.length - 1, Math.floor(v * grass.length)))];
       const r = random();
-      if (r < .014) color = tuftDark; else if (r < .024) color = tuftLight;
+      if (r < .008) color = tuftDark; else if (r < .013) color = tuftLight;
     }
     const i = (y * cols + x) * 4;
     image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
@@ -1205,7 +1207,7 @@ function isOnPathPixel(px, py) {
  * 시설을 새로 지으면 그 자리의 장식은 사라진다(나무를 베고 지은 것처럼).
  */
 const DECOR_KINDS = ['tree', 'pine', 'bush', 'tree', 'flowers', 'pine', 'rock', 'tree', 'bush', 'flowers'];
-const DECOR_SIZES = { tree: 62, pine: 62, bush: 44, flowers: 34, rock: 36 };
+const DECOR_SIZES = { tree: 64, pine: 64, bush: 44, flowers: 36, rock: 36 }; // 화면 크기(그림 크기의 2배)
 function decorPlacements() {
   const w = canvas.width, h = canvas.height, list = [];
   for (let i = 0; i < 30; i++) {
@@ -1222,10 +1224,11 @@ function decorPlacements() {
 }
 function drawDecor(item) {
   const image = readySprite(`decor:${item.kind}`);
-  ctx.fillStyle = 'rgba(34,74,43,.22)'; ctx.beginPath(); ctx.ellipse(item.x, item.y - 2, item.size * .34, item.size * .12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(10,36,16,.3)'; ctx.beginPath(); ctx.ellipse(item.x, item.y - 2, item.size * .34, item.size * .12, 0, 0, Math.PI * 2); ctx.fill();
   if (image) {
+    const w = image.naturalWidth * 2, h = image.naturalHeight * 2;
     ctx.save(); ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(image, Math.round(item.x - item.size / 2), Math.round(item.y - item.size), item.size, item.size);
+    ctx.drawImage(image, Math.round(item.x - w / 2), Math.round(item.y - h), w, h);
     ctx.restore();
   } else if (item.kind === 'tree' || item.kind === 'pine' || item.kind === 'bush') {
     drawTree(item.x, item.y - 22, item.size / 70);
@@ -1322,13 +1325,15 @@ function drawPet(pet) {
   const effect=activePetEffect(pet.id);
   const pose=petPose(pet);
   const bob=pose.offsetY;
-  ctx.fillStyle='rgba(30,57,31,.25)';ctx.beginPath();ctx.ellipse(x,y+14,17-Math.min(3,-bob*.4),7,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(10,30,14,.35)';ctx.beginPath();ctx.ellipse(x,y+14,20-Math.min(3,-bob*.4),7,0,0,Math.PI*2);ctx.fill();
   const petImage=petSpriteFor(pet);
   if(petImage){
     // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다). 발밑을 기준으로 기울이고 납작하게 만든다.
     // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
+    // 그림 크기의 2배로 그린다(32칸 그림 → 화면 64칸).
+    const w=(petImage.naturalWidth||petImage.width)*2,h=(petImage.naturalHeight||petImage.height)*2;
     ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(x),Math.round(y+18+bob));ctx.rotate(pose.tilt);
-    ctx.scale((pet.direction<0?-1:1)*(1+pose.squash),1-pose.squash);ctx.drawImage(petImage,-24,-48,48,48);ctx.restore();
+    ctx.scale((pet.direction<0?-1:1)*(1+pose.squash),1-pose.squash);ctx.drawImage(petImage,-w/2,-h,w,h);ctx.restore();
   } else {
     ctx.fillStyle=species.color;ctx.beginPath();ctx.ellipse(x,y+bob,15,13,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#53664a';ctx.lineWidth=1.5;ctx.stroke();
@@ -1340,10 +1345,10 @@ function drawPet(pet) {
     ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(species.icon,x,y-23+bob);
   }
   ctx.textAlign='center';
-  if(isWorking(pet)){ctx.fillStyle='#f0cf75';ctx.beginPath();ctx.arc(x+15,y-15,4,0,Math.PI*2);ctx.fill();}
-  if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+17,y-14+Math.sin(pet.bob*.5)*2);}
-  if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-15,y-18+bob);}
-  if(selectedPetId===pet.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y+1,22,21,0,0,Math.PI*2);ctx.stroke();}
+  if(isWorking(pet)){ctx.fillStyle='#f0cf75';ctx.beginPath();ctx.arc(x+20,y-24,4,0,Math.PI*2);ctx.fill();}
+  if(resting){ctx.font='12px sans-serif';ctx.fillText('💤',x+22,y-24+Math.sin(pet.bob*.5)*2);}
+  if(pet.appearance){ctx.font='12px sans-serif';ctx.fillStyle='#fff1a5';ctx.fillText('✦',x-22,y-28+bob);}
+  if(selectedPetId===pet.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y-6,28,28,0,0,Math.PI*2);ctx.stroke();}
   if(effect){
     // 머리 위로 떠오르며 사라지는 하트(쓰다듬기) 또는 음표(놀아주기)
     const progress=clamp((performance.now()-effect.startedAt)/(effect.until-effect.startedAt),0,1);
@@ -1352,7 +1357,7 @@ function drawPet(pet) {
     for(let i=0;i<3;i++){
       const p=(progress*(effect.type==='play'?3:1.5)+i/3)%1;
       ctx.globalAlpha=1-p;
-      ctx.fillText(mark,x+(i-1)*13+Math.sin((p+i)*6)*3,y-34-p*24);
+      ctx.fillText(mark,x+(i-1)*13+Math.sin((p+i)*6)*3,y-46-p*24);
     }
     ctx.restore();
   }

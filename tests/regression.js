@@ -376,12 +376,12 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const ids = Object.keys(SPECIES); const types = Object.keys(BUILDING_TYPES);
     out.allPetsHaveImage = ids.every(id => SPECIES[id].image === `assets/pets/${id}.png`);
     out.notLoaded = ids.filter(id => !readySprite(`pet:${id}`));
-    out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 48 || img.naturalHeight !== 48; });
+    out.wrongSize = ids.filter(id => { const img = readySprite(`pet:${id}`); return !img || img.naturalWidth !== 32 || img.naturalHeight !== 32; });
     out.allBuildingsHaveImage = types.every(type => BUILDING_TYPES[type].image === `assets/buildings/${type}.png`);
     out.buildingNotLoaded = types.filter(type => !readySprite(`building:${type}`));
-    out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 120 || img.naturalHeight !== 100; });
-    out.resourceWrong = Object.keys(RESOURCES).filter(k => { const img = readySprite(`resource:${k}`); return RESOURCES[k].image !== `assets/resources/${k}.png` || !img || img.naturalWidth !== 48 || img.naturalHeight !== 48; });
-    out.decorWrong = Object.keys(DECOR_IMAGES).filter(k => { const img = readySprite(`decor:${k}`); return DECOR_IMAGES[k] !== `assets/decor/${k}.png` || !img || img.naturalWidth !== 64 || img.naturalHeight !== 64; });
+    out.buildingWrongSize = types.filter(type => { const img = readySprite(`building:${type}`); return !img || img.naturalWidth !== 60 || img.naturalHeight !== 50; });
+    out.resourceWrong = Object.keys(RESOURCES).filter(k => { const img = readySprite(`resource:${k}`); return RESOURCES[k].image !== `assets/resources/${k}.png` || !img || img.naturalWidth !== 24 || img.naturalHeight !== 24; });
+    out.decorWrong = Object.keys(DECOR_IMAGES).filter(k => { const img = readySprite(`decor:${k}`); const size = { tree: 32, pine: 32, bush: 22, flowers: 18, rock: 18, egg: 12 }[k]; return DECOR_IMAGES[k] !== `assets/decor/${k}.png` || !img || img.naturalWidth !== size || img.naturalHeight !== size; });
     // 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 불러오지 못하면 임시 그림으로 그린다.
     const real = { bun: SPECIES.sproutbun.image, lamb: SPECIES.pebblelamb.image, otter: SPECIES.dewotter.image, farm: BUILDING_TYPES.farm.image, quarry: BUILDING_TYPES.quarry.image, plaza: BUILDING_TYPES.plaza.image };
     const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8);
@@ -402,9 +402,9 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     drawVillage();
     return out;
   });
-  check('6-4 펫 그림: 15종 모두 그림 파일(48×48)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
-  check('6-4 시설 그림: 6종 모두 그림 파일(120×100)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
-  check('6-6 자원 그림 4종(48×48)·장식 그림 6종(64×64)을 불러옴', sprite.resourceWrong.length === 0 && sprite.decorWrong.length === 0, JSON.stringify({ resource: sprite.resourceWrong, decor: sprite.decorWrong }));
+  check('6-4 펫 그림: 15종 모두 그림 파일(32×32)을 불러옴', sprite.allPetsHaveImage && sprite.notLoaded.length === 0 && sprite.wrongSize.length === 0, JSON.stringify({ notLoaded: sprite.notLoaded, wrongSize: sprite.wrongSize }));
+  check('6-4 시설 그림: 6종 모두 그림 파일(60×50)을 불러옴', sprite.allBuildingsHaveImage && sprite.buildingNotLoaded.length === 0 && sprite.buildingWrongSize.length === 0, JSON.stringify({ notLoaded: sprite.buildingNotLoaded, wrongSize: sprite.buildingWrongSize }));
+  check('6-6 자원 그림 4종(24×24)·장식 그림 6종(나무 32, 덤불 22, 꽃·바위 18, 알 12)을 불러옴', sprite.resourceWrong.length === 0 && sprite.decorWrong.length === 0, JSON.stringify({ resource: sprite.resourceWrong, decor: sprite.decorWrong }));
   check('6-4 그림 교체 규칙: image를 적은 항목만 그림으로 그리고, 없거나 실패하면 임시 그림(펫·시설 모두)', sprite.petReady && sprite.buildingReady && sprite.brokenFallsBack && sprite.missingFallsBack && sprite.buildingBrokenFallsBack && sprite.buildingMissingFallsBack && sprite.drawOk && sprite.restored, JSON.stringify(sprite));
   // 그림이 실제로 화면에 그려지는지: 마을을 한 번 그릴 때 펫·시설·장식·알·배경이 각자 자기 그림으로 그려져야 한다.
   // (파일로 직접 열면 브라우저가 캔버스 픽셀 읽기를 막으므로, 그리기 호출을 기록하는 방식으로 확인한다.)
@@ -429,7 +429,12 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
       background: images[0] === backgroundLayer.canvas && countOf(backgroundLayer.canvas) === 1,
       decor: decor.length, decorOk: decor.length >= 8 && Object.entries(decorCounts).every(([kind, n]) => countOf(readySprite(`decor:${kind}`)) === n),
       eggOk: countOf(readySprite('decor:egg')) === 1,
-      labelsAfterPets: labelIdx.every(i => i > lastPet), total: images.length
+      labelsAfterPets: labelIdx.every(i => i > lastPet), total: images.length,
+      // 펫·시설·장식·알은 모두 그림 크기의 정확히 2배로 그린다(한 점 = 화면 2칸)
+      doubled: log.filter(e => e.kind === 'image' && e.image !== backgroundLayer.canvas).every(e => {
+        const w = e.image.naturalWidth || e.image.width, h = e.image.naturalHeight || e.image.height;
+        return Math.abs(e.rest[2] - w * 2) < .01 && Math.abs(e.rest[3] - h * 2) < .01;
+      })
     };
   });
   check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.petsOk, JSON.stringify(drawn));
@@ -437,6 +442,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-6 장식(나무·덤불·꽃·바위)과 알이 그림으로 그려짐', drawn.decorOk && drawn.eggOk, JSON.stringify(drawn));
   check('6-6 풀밭·길 배경은 한 번 만든 그림을 맨 먼저 한 번만 그림', drawn.background, JSON.stringify(drawn));
   check('6-6 시설 이름표는 펫보다 나중에 그려 가리지 않음', drawn.labelsAfterPets, JSON.stringify(drawn));
+  check('6-7 펫·시설·장식·알을 모두 그림 크기의 2배로 그림(점 크기 통일)', drawn.doubled, JSON.stringify(drawn));
   const scene = await page.evaluate(() => {
     const out = {};
     // 배경: 1/4 크기 그림을 4배로 키워 그린다. 같은 그림을 재사용하고, 다시 만들어도 같은 모양이다.
@@ -476,7 +482,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     pet.appearance = '특별 무늬 3'; const v3 = petSpriteFor(pet);
     pet.appearance = '이상한 값'; const odd = petSpriteFor(pet);
     pet.appearance = saved;
-    return { plain: plain === base, variantsDiffer: new Set([v1, v2, v3]).size === 3 && ![v1, v2, v3].includes(base), cached: v1 === v1again, sized: [v1, v2, v3].every(c => c.width === 48 && c.height === 48), oddFallsBack: odd === v1, variants: [1, 2, 3, 4, 'x'].map(n => rareLookVariant(`특별 무늬 ${n}`)).join() };
+    return { plain: plain === base, variantsDiffer: new Set([v1, v2, v3]).size === 3 && ![v1, v2, v3].includes(base), cached: v1 === v1again, sized: [v1, v2, v3].every(c => c.width === base.naturalWidth && c.height === base.naturalHeight), oddFallsBack: odd === v1, variants: [1, 2, 3, 4, 'x'].map(n => rareLookVariant(`특별 무늬 ${n}`)).join() };
   });
   check('6-6 희귀 외형: 무늬 1~3이 서로 다른 그림, 보통 펫은 원래 그림', rare.plain && rare.variantsDiffer && rare.cached && rare.sized && rare.oddFallsBack && rare.variants === '1,2,3,1,1', JSON.stringify(rare));
 
@@ -490,7 +496,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.card = !!cardImg && cardImg.getAttribute('src') === real && cardImg.alt === species.icon;
     out.profile = !!profileImg && profileImg.getAttribute('src') === real;
     await new Promise(r => setTimeout(r, 200));
-    out.loaded = !!cardImg && cardImg.complete && cardImg.naturalWidth === 48 && cardImg.getBoundingClientRect().width === 48;
+    out.loaded = !!cardImg && cardImg.complete && cardImg.naturalWidth === 32 && cardImg.getBoundingClientRect().width === 48;
     out.everyCard = [...document.querySelectorAll('.pet-list .pet-card')].every(card => card.querySelector('.pet-avatar img.pet-sprite'));
     activeTab = 'dex'; renderAll();
     out.found = game.discoveredSpecies.length; out.locked = document.querySelectorAll('.dex-card.locked').length;
@@ -508,7 +514,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     out.restored = !!document.querySelector('.pet-card.selected .pet-avatar img.pet-sprite');
     return out;
   });
-  check('6-5 펫 목록·펫 정보에 종족 그림 표시(48×48)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
+  check('6-5 펫 목록·펫 정보에 종족 그림 표시(32칸 그림을 48px로)', icons.card && icons.profile && icons.loaded && icons.everyCard, JSON.stringify(icons));
   check('6-5 도감: 발견한 종족은 그림, 미발견 종족은 ❔', icons.dexFound && icons.dexLocked && icons.dexInfo && icons.found > 0, JSON.stringify({ found: icons.found, locked: icons.locked }));
   check('6-5 그림이 없거나 불러오지 못한 종족은 이모지로 표시', icons.noImage && icons.failedSprite && icons.brokenBecomesEmoji && icons.restored, JSON.stringify(icons));
 
