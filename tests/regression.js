@@ -20,6 +20,12 @@ const SHOT_DIR = require('os').tmpdir();
 const SPECIES_NAME_MOSSBEAR = '끼고미'; // 종족 이름은 임시다. 이름을 바꾸면 여기도 함께 바꾼다.
 const results = [];
 function check(name, ok, detail='') { results.push({ name, ok: !!ok, detail }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  → ' + detail : '')); }
+// 건설하기를 누른 뒤 마을 그림의 빈 칸(왼쪽 위에서 가장 가까운 곳)을 눌러 짓는다. 건물 자유 배치 이후의 건설 방법.
+async function buildOnMap(page, type) {
+  await page.click(`[data-build="${type}"]`);
+  const pt = await page.evaluate(() => { const c = nearestFreeCell(0, 0); const pos = cellCenter(c.col, c.row); const r = canvas.getBoundingClientRect(); return { x: r.left + pos.x * r.width, y: r.top + pos.y * r.height }; });
+  await page.mouse.click(pt.x, pt.y);
+}
 const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow = Date.now.bind(Date); window.__off = ${off}; Date.now = () => window.__realNow() + window.__off; })();`;
 
 (async () => {
@@ -103,9 +109,9 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
 
   // ---------- 5. 건설 ----------
   await page.evaluate(() => { game.resources = { wood: 30, stone: 24, plant: 30, ore: 8 }; activeTab = 'village'; renderAll(); });
-  await page.click('[data-build="quarry"]'); await page.click('[data-build="smelter"]');
+  await buildOnMap(page, 'quarry'); await buildOnMap(page, 'smelter');
   check('5 채굴장·제련소 먼저 지어도 벌목장 건설 가능(막힘 해소)', await page.evaluate(() => canAfford(BUILDING_TYPES.lumber.cost)), await page.evaluate(() => JSON.stringify(game.resources)));
-  await page.click('[data-build="lumber"]');
+  await buildOnMap(page, 'lumber');
   check('5 네 시설 모두 건설', await page.evaluate(() => ['farm', 'lumber', 'quarry', 'smelter'].every(t => getBuilding(t))) && (await page.textContent('#panelContent')).includes('모든 기본 생산 시설을 건설했어요'));
   check('5 자원 음수 없음', await page.evaluate(() => Object.values(game.resources).every(v => v >= 0)));
   const yields = await page.evaluate(() => {
@@ -157,6 +163,84 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('5-2 최대 레벨에서는 업그레이드 버튼이 없고 "최대 레벨" 표시', await page.evaluate((sel) => !document.querySelector(sel), upSel) && (await page.textContent('#panelContent')).includes('최대 레벨'));
   check('5-2 최대 레벨에서 직접 호출해도 변화 없음', await page.evaluate((id) => { upgradeBuilding(id); return getBuildingById(id).level === 3 && game.resources.wood === 76; }, lumberId));
   check('5-2 저장 데이터의 비정상 레벨(99)은 최대 레벨로 보정', await page.evaluate(() => { const copy = JSON.parse(JSON.stringify(game)); copy.buildings.find(b => b.type === 'farm').level = 99; return normalizeGame(copy).buildings.find(b => b.type === 'farm').level === CONFIG.maxBuildingLevel; }));
+
+  // ---------- 5-4. 격자 자유 배치·옮기기 ----------
+  const gridLayout = await page.evaluate(() => {
+    const cells = game.buildings.map(b => buildingCellsOf(b));
+    const snapped = game.buildings.every(b => { const c = buildingCellsOf(b); const pos = cellCenter(c.col, c.row); return Math.abs(pos.x - b.x) < 1e-9 && Math.abs(pos.y - b.y) < 1e-9; });
+    const inside = cells.every(c => c.col >= 0 && c.row >= 0 && c.col + c.w <= CONFIG.gridCols && c.row + c.h <= CONFIG.gridRows);
+    const overlap = cells.some((a, i) => cells.some((b, j) => i < j && cellsOverlap(a, b)));
+    const fresh = createInitialGame().buildings.every(b => { const c = buildingCellsOf(b); return canPlaceAt(c.col, c.row, b.id, createInitialGame().buildings.filter(o => o.type !== b.type)); });
+    return { snapped, inside, overlap, fresh, count: cells.length };
+  });
+  check('5-4 시설은 격자 칸에 맞춰 놓이고 서로 겹치지 않음(새 게임 포함)', gridLayout.snapped && gridLayout.inside && !gridLayout.overlap && gridLayout.fresh, JSON.stringify(gridLayout));
+  // 건설하기 → 바로 짓지 않고 칸 고르기
+  const placeStart = await page.evaluate(() => {
+    // 이 구역은 벌목장을 새로 지어 보므로, 앞 검사에서 Lv.3으로 올린 벌목장과 그 배치를 보관했다가 끝에 되돌린다.
+    window.__keptLumber = { building: getBuilding('lumber'), workers: game.pets.filter(p => p.workBuildingId === getBuilding('lumber').id).map(p => p.id) };
+    game.buildings = game.buildings.filter(b => b.type !== 'lumber'); game.pets.forEach(p => { if (!getBuildingById(p.workBuildingId)) p.workBuildingId = null; });
+    game.resources = { wood: 50, stone: 50, plant: 30, ore: 10 }; activeTab = 'pets'; ui.placing = null; renderAll();
+    return { count: game.buildings.length };
+  });
+  await page.click('[data-tab="village"]');
+  await page.evaluate(() => { document.querySelector('#panelContent').scrollTop = 99999; });
+  await page.click('[data-build="lumber"]');
+  const placing1 = await page.evaluate(() => { const box = document.querySelector('[data-placing]'); const panel = document.querySelector('#panelContent').getBoundingClientRect(); const r = box ? box.getBoundingClientRect() : null;
+    return { placing: ui.placing && ui.placing.mode, type: ui.placing && ui.placing.type, count: game.buildings.length, wood: game.resources.wood, banner: box ? box.textContent : '', visible: !!r && r.top >= panel.top - 1 && r.bottom <= panel.bottom + 1 }; });
+  check('5-4 건설하기를 누르면 바로 짓지 않고 칸 고르기 안내(자원 그대로, 안내가 보이는 위치)', placing1.placing === 'build' && placing1.type === 'lumber' && placing1.count === placeStart.count && placing1.wood === 50 && placing1.banner.includes('벌목장을 지을 칸을 누르세요') && placing1.visible, JSON.stringify(placing1));
+  // 다른 건물과 겹치는 칸을 누르면 거부
+  const farmCenter = await page.evaluate(() => { const b = getBuilding('farm'); const r = canvas.getBoundingClientRect(); return { x: r.left + b.x * r.width, y: r.top + b.y * r.height }; });
+  await page.mouse.click(farmCenter.x, farmCenter.y);
+  const blocked = await page.evaluate(() => ({ placing: !!ui.placing, built: !!getBuilding('lumber'), wood: game.resources.wood, outside: canPlaceAt(-1, 0) || canPlaceAt(CONFIG.gridCols - 2, 0) || canPlaceAt(0, CONFIG.gridRows - 1) || canPlaceAt(1.5, 2) }));
+  check('5-4 다른 건물과 겹치는 칸·마을 밖에는 놓을 수 없음(자원 그대로, 계속 고르기)', blocked.placing && !blocked.built && blocked.wood === 50 && !blocked.outside, JSON.stringify(blocked));
+  // 미리보기를 그림(격자·반투명 건물)
+  const preview = await page.evaluate(() => { const original = ctx.drawImage; let ghost = 0; const sprite = readySprite('building:lumber'); ctx.drawImage = function (img, ...rest) { if (img === sprite) ghost++; return original.call(this, img, ...rest); }; try { ui.placing.col = 0; ui.placing.row = 0; drawVillage(); } finally { ctx.drawImage = original; } return { ghost, ok: canPlaceAt(0, 0) }; });
+  check('5-4 칸을 고르는 동안 마을 그림에 반투명 미리보기를 그림', preview.ghost === 1, JSON.stringify(preview));
+  // Esc로 취소
+  await page.keyboard.press('Escape');
+  check('5-4 Esc를 누르면 취소(짓지 않고 자원 그대로)', await page.evaluate(() => !ui.placing && !getBuilding('lumber') && game.resources.wood === 50 && !document.querySelector('[data-placing]')));
+  // 빈 칸을 누르면 그 칸에 짓는다
+  await page.click('[data-build="lumber"]');
+  const target = await page.evaluate(() => { const c = nearestFreeCell(20, 0); const pos = cellCenter(c.col, c.row); const r = canvas.getBoundingClientRect(); return { col: c.col, row: c.row, x: r.left + pos.x * r.width, y: r.top + pos.y * r.height }; });
+  await page.mouse.click(target.x, target.y);
+  const builtAt = await page.evaluate(() => { const b = getBuilding('lumber'); const saved = JSON.parse(localStorage.getItem(CONFIG.saveKey)).buildings.find(o => o.type === 'lumber'); return { cell: b && buildingCellsOf(b), wood: game.resources.wood, stone: game.resources.stone, placing: !!ui.placing, saved: !!saved && saved.x === b.x && saved.y === b.y }; });
+  check('5-4 빈 칸을 누르면 그 칸에 짓고 자원을 씀(즉시 저장)', builtAt.cell && builtAt.cell.col === target.col && builtAt.cell.row === target.row && builtAt.wood === 44 && builtAt.stone === 45 && !builtAt.placing && builtAt.saved, JSON.stringify(builtAt));
+  // 옮기기: 시설 정보의 '옮기기' → 다른 칸
+  const moveSetup = await page.evaluate(() => { const farm = getBuilding('farm'); farm.level = 1; const worker = game.pets[0]; worker.workBuildingId = farm.id; ui.selectedBuildingId = farm.id; activeTab = 'village'; renderAll(); return { id: farm.id, worker: worker.id, wood: game.resources.wood, from: buildingCellsOf(farm) }; });
+  await page.click(`[data-selected-building] [data-move-building="${moveSetup.id}"]`);
+  const moving = await page.evaluate(() => ({ mode: ui.placing && ui.placing.mode, id: ui.placing && ui.placing.buildingId, banner: document.querySelector('[data-placing]')?.textContent || '' }));
+  check('5-4 옮기기를 누르면 옮길 칸 고르기 안내', moving.mode === 'move' && moving.id === moveSetup.id && moving.banner.includes('농장을 옮길 칸을 누르세요'), JSON.stringify(moving));
+  const moveTarget = await page.evaluate(() => { const c = nearestFreeCell(0, 12); const pos = cellCenter(c.col, c.row); const r = canvas.getBoundingClientRect(); return { col: c.col, row: c.row, x: r.left + pos.x * r.width, y: r.top + pos.y * r.height }; });
+  await page.mouse.click(moveTarget.x, moveTarget.y);
+  const moved = await page.evaluate((id) => { const b = getBuildingById(id); const saved = JSON.parse(localStorage.getItem(CONFIG.saveKey)).buildings.find(o => o.id === id); return { cell: buildingCellsOf(b), level: b.level, sameId: getBuilding('farm') === b, worker: game.pets[0].workBuildingId === id, wood: game.resources.wood, saved: saved.x === b.x && saved.y === b.y, placing: !!ui.placing }; }, moveSetup.id);
+  check('5-4 옮기면 그 칸으로 이동, 레벨·배치된 펫 유지, 자원 들지 않음(즉시 저장)', moved.cell.col === moveTarget.col && moved.cell.row === moveTarget.row && moved.level === 1 && moved.sameId && moved.worker && moved.wood === moveSetup.wood && moved.saved && !moved.placing, JSON.stringify(moved));
+  // 광장도 옮길 수 있고, 제자리(자기 칸)에 다시 놓는 것도 가능
+  const plazaMove = await page.evaluate(() => { const plaza = getBuilding('plaza'); const from = buildingCellsOf(plaza); startMoving(plaza.id); const ok = placeBuildingAt(from.col, from.row); const after = buildingCellsOf(plaza); return { ok, same: after.col === from.col && after.row === from.row, cardButtons: document.querySelectorAll('.build-card [data-move-building]').length, buildings: game.buildings.length }; });
+  check('5-4 광장·교배장도 옮길 수 있고, 모든 시설 카드에 옮기기 버튼', plazaMove.ok && plazaMove.same && plazaMove.cardButtons === plazaMove.buildings, JSON.stringify(plazaMove));
+  // 다른 탭으로 가면 취소
+  await page.evaluate(() => startMoving(getBuilding('farm').id));
+  await page.click('[data-tab="pets"]');
+  check('5-4 다른 탭으로 가면 배치 취소', await page.evaluate(() => ui.placing === null));
+  // 예전 저장(종류별 고정 위치, 겹친 위치)을 불러오면 격자 칸에 맞춰지고 겹치지 않는다
+  const legacyGrid = await page.evaluate(() => {
+    const old = JSON.parse(JSON.stringify(game));
+    old.buildings = [
+      { id: 'b1', type: 'plaza', x: .5, y: .48, level: 1 }, { id: 'b2', type: 'nursery', x: .73, y: .35, level: 1 }, { id: 'b3', type: 'farm', x: .28, y: .68, level: 2 },
+      { id: 'b4', type: 'lumber', x: .75, y: .73, level: 1 }, { id: 'b5', type: 'quarry', x: .18, y: .37, level: 1 }, { id: 'b6', type: 'smelter', x: .28, y: .68, level: 1 }
+    ];
+    old.pets.forEach(p => { p.workBuildingId = 'b3'; });
+    const n = normalizeGame(old);
+    const cells = n.buildings.map(b => buildingCellsOf(b));
+    return { count: n.buildings.length, snapped: n.buildings.every(b => { const c = buildingCellsOf(b); const pos = cellCenter(c.col, c.row); return Math.abs(pos.x - b.x) < 1e-9 && Math.abs(pos.y - b.y) < 1e-9; }),
+      overlap: cells.some((a, i) => cells.some((b, j) => i < j && cellsOverlap(a, b))), near: Math.abs(n.buildings[0].x - .5) < .1 && Math.abs(n.buildings[0].y - .48) < .1, level: n.buildings[2].level, workers: n.pets.every(p => p.workBuildingId === 'b3') };
+  });
+  check('5-4 예전 저장의 고정 위치·겹친 위치는 가장 가까운 빈 칸으로 맞춤(레벨·배치 유지)', legacyGrid.count === 6 && legacyGrid.snapped && !legacyGrid.overlap && legacyGrid.near && legacyGrid.level === 2 && legacyGrid.workers, JSON.stringify(legacyGrid));
+  await page.evaluate(() => {
+    const kept = window.__keptLumber.building; game.buildings = game.buildings.filter(b => b.type !== 'lumber');
+    const c = buildingCellsOf(kept); if (!canPlaceAt(c.col, c.row)) { const free = nearestFreeCell(c.col, c.row); Object.assign(kept, cellCenter(free.col, free.row)); }
+    game.buildings.push(kept); game.pets.forEach(p => { if (window.__keptLumber.workers.includes(p.id)) p.workBuildingId = kept.id; });
+    activeTab = 'village'; renderAll(); saveGame();
+  });
 
   // ---------- 5-3. 지역 개방 (숲: 마을 3단계 + 도감 5종 + 목재 100·돌 60 소모) ----------
   // 이 시점: 건물 6개 + 발견 2종 → 마을 2단계. 검사를 위해 발견 종족만 잠시 바꾸고 끝나면 되돌린다.
@@ -440,7 +524,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-4 펫 그림이 마을 화면에 그려짐(펫마다 한 번)', drawn.petsOk, JSON.stringify(drawn));
   check('6-4 시설 그림이 마을 화면에 그려짐(시설마다 한 번)', drawn.buildingsOk, JSON.stringify(drawn));
   check('6-6 장식(나무·덤불·꽃·바위)과 알이 그림으로 그려짐', drawn.decorOk && drawn.eggOk, JSON.stringify(drawn));
-  check('6-6 풀밭·길 배경은 한 번 만든 그림을 맨 먼저 한 번만 그림', drawn.background, JSON.stringify(drawn));
+  check('6-6 풀밭 배경은 한 번 만든 그림을 맨 먼저 한 번만 그림', drawn.background, JSON.stringify(drawn));
   check('6-6 시설 이름표는 펫보다 나중에 그려 가리지 않음', drawn.labelsAfterPets, JSON.stringify(drawn));
   check('6-7 펫·시설·장식·알을 모두 그림 크기의 2배로 그림(점 크기 통일)', drawn.doubled, JSON.stringify(drawn));
   const scene = await page.evaluate(() => {
@@ -448,20 +532,24 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     // 배경: 1/4 크기 그림을 4배로 키워 그린다. 같은 그림을 재사용하고, 다시 만들어도 같은 모양이다.
     const first = backgroundLayer; drawVillage(); out.reused = backgroundLayer === first;
     out.size = [first.cols, first.rows, first.canvas.width, first.canvas.height];
-    const again = buildBackground(); out.sameShape = again.path.length === first.path.length && again.path.every((v, i) => v === first.path[i]);
-    out.pathShare = first.path.reduce((a, b) => a + b, 0) / first.path.length;
-    // 장식은 길·지어진 시설과 겹치지 않는다.
+    const again = buildBackground();
+    const pixels = (layer) => layer.canvas.getContext('2d').getImageData(0, 0, layer.cols, layer.rows).data;
+    const a = pixels(first), b = pixels(again); out.sameShape = a.length === b.length && a.every((v, i) => v === b[i]);
+    // 흙길이 없다: 모든 점이 풀밭 초록(초록이 빨강·파랑보다 진함)이고 길 정보도 없다.
+    let notGreen = 0; for (let i = 0; i < a.length; i += 4) if (!(a[i + 1] > a[i] && a[i + 1] > a[i + 2])) notGreen++;
+    out.notGreen = notGreen; out.noPath = !('path' in first) && typeof isOnPathPixel === 'undefined';
+    // 장식은 지어진 시설(그림 범위)과 겹치지 않는다.
     const w = canvas.width, h = canvas.height; const decor = decorPlacements();
-    out.decorOnPath = decor.filter(d => isOnPathPixel(d.x, d.y)).length;
-    out.decorOnBuilding = decor.filter(d => game.buildings.some(b => Math.abs(b.x * w - d.x) < 64 && d.y > b.y * h - 80 && d.y < b.y * h + 60)).length;
+    out.decorOnBuilding = decor.filter(d => game.buildings.some(b => Math.abs(b.x * w - d.x) < 60 && d.y > b.y * h - 60 && d.y - d.size < b.y * h + 40)).length;
     // 시설을 새로 지으면 그 자리의 장식이 사라진다(규칙은 건드리지 않고 그리기만 확인).
     const spot = decor.find(d => d.kind === 'tree' || d.kind === 'pine');
     const fake = { id: 'b_test', type: 'lumber', x: spot.x / w, y: (spot.y - 20) / h, level: 1 };
     game.buildings.push(fake); out.clearedForBuilding = !decorPlacements().some(d => d.x === spot.x && d.y === spot.y); game.buildings.pop();
     return out;
   });
-  check('6-6 배경: 1/4 크기(240×150) 픽셀 그림을 재사용, 다시 만들어도 같은 모양', scene.reused && scene.size.join() === '240,150,240,150' && scene.sameShape && scene.pathShare > .05 && scene.pathShare < .2, JSON.stringify(scene));
-  check('6-6 장식은 길·시설과 겹치지 않고, 시설을 지으면 그 자리 장식이 사라짐', scene.decorOnPath === 0 && scene.decorOnBuilding === 0 && scene.clearedForBuilding, JSON.stringify(scene));
+  check('6-6 배경: 1/4 크기(240×150) 픽셀 그림을 재사용, 다시 만들어도 같은 모양', scene.reused && scene.size.join() === '240,150,240,150' && scene.sameShape, JSON.stringify(scene));
+  check('5-4 흙길 없음: 배경은 풀밭 초록뿐', scene.noPath && scene.notGreen === 0, JSON.stringify({ noPath: scene.noPath, notGreen: scene.notGreen }));
+  check('6-6 장식은 시설과 겹치지 않고, 시설을 지으면 그 자리 장식이 사라짐', scene.decorOnBuilding === 0 && scene.clearedForBuilding, JSON.stringify(scene));
   const motion = await page.evaluate(() => {
     const pet = game.pets[0]; const saved = { moving: pet.moving, bob: pet.bob, energy: pet.energy, work: pet.workBuildingId, resting: pet.resting };
     petEffects.clear(); pet.workBuildingId = null; pet.resting = false; pet.energy = pet.maxEnergy;

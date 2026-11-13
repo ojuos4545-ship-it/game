@@ -43,3 +43,4 @@
 .resource-sprite{display:block;width:24px;height:24px;image-rendering:pixelated}
 .egg-sprite{display:block;width:24px;height:24px;image-rendering:pixelated}
 @media(max-width:420px){.resource-sprite{width:20px;height:20px}}
+.placing-box{border-color:#8ff5a5;background:#21402a;margin-bottom:10px}

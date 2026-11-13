@@ -13,7 +13,7 @@
 |---|---|
 | 게임 | PC 브라우저용 펫 수집·교배·육성 시뮬레이션. `index.html`을 열면 바로 실행된다(서버·설치 불필요) |
 | 개발 단계 | 개발 길라잡이 10단계 중 **9단계 완료, 10단계 중 그림 교체 완료**. 남은 것은 밸런스 조정과 종족 이름 확정 |
-| 자동 검사 | `node tests/regression.js` → **총 168개 중 통과 168, 실패 0** (2026-11-13 기준) |
+| 자동 검사 | `node tests/regression.js` → **총 180개 중 통과 180, 실패 0** (2026-11-13 기준) |
 | 최신 코드 위치 | GitHub `ojuos4545-ship-it/game` 저장소의 **`claude/fervent-sagan-ghojpc` 브랜치**. `main`보다 커밋 8개(이 인계 문서 커밋 포함) 앞서 있고 아직 `main`에 합치지 않았다 |
 | 버전 표기 | 화면 하단 `EARLY PLAYABLE BUILD · v0.3` |
 | 저장 데이터 | 브라우저 `localStorage`의 `little-haven-save-v1` 키, 구조 버전 1. v0.1 저장부터 그대로 이어서 불러온다 |
@@ -124,6 +124,11 @@
    - 메뉴 아이콘
    - 그 뒤 사용자가 품질이 마음에 들지 않는다고 해서 **"슬달이 방식"으로 통일**했다. 진한 외곽선, 쨍한 색, 절반 크기 그림을 2배로 그리고, 짙은 초록 배경으로 바꿨다. 경위는 `IMPLEMENTATION_STATUS.md` 8장에 있다.
 5. **검사 자체 수정 1건**: "작은 화면에서 펫 누르기" 검사가 펫 두 마리가 우연히 겹칠 때 실패했다. 원인을 재현해 확인했고, 검사만 고쳤다. 확인하는 내용은 같다.
+6. **펫 크기 조정**: 펫 15종을 크기 세 가지로 나열해 비교했고, 사용자가 B(화면 56)를 골랐다.
+7. **계획 수정, 격자 자유 배치·옮기기**: 기획서 8장에 있던 기능을 사용자와 정해 구현했다.
+   - 시설을 원하는 칸에 짓고, 지은 시설을 무료로 옮긴다.
+   - 흙길은 없앴다.
+   - 철거는 이번에 넣지 않았다.
 
 ---
 
@@ -139,7 +144,7 @@ game/
 │  ├─ buildings/         시설 그림 6장 (60×50, 파일 이름 = 시설 ID, 화면에는 2배)
 │  ├─ decor/             tree·pine 32, bush 22, flowers·rock 18, egg 12 (화면에는 2배)
 │  └─ resources/         wood, stone, plant, ore (24×24)
-├─ tests/regression.js   자동 검사 168개 (실제 Chromium으로 게임을 조작)
+├─ tests/regression.js   자동 검사 180개 (실제 Chromium으로 게임을 조작)
 ├─ tools/
 │  ├─ slice_sprites.py       여러 그림이 든 한 장을 하나씩 잘라 투명 PNG로 만드는 도구
 │  ├─ bold_pixels.py         잘라 낸 그림을 진한 외곽선·쨍한 색으로 다듬는 도구(슬달이 방식)
@@ -205,6 +210,8 @@ unlockedRegions[], regionGiftsGiven[], villageLevel, totalDiscoveries, message
 
 v0.3에서 새로 생긴 값은 `unlockedRegions`, `regionGiftsGiven`, `discoveredLooksBySpecies`다. 모두 `normalizeGame()`이 예전 저장에 기본값을 채운다. 저장 버전은 1 그대로다.
 
+건물 `x, y`는 "차지한 칸 묶음의 한가운데"(0~1 비율)다. 불러올 때 `normalizeGame()`이 격자 칸에 맞추고, 겹치면 가장 가까운 빈 칸으로 옮긴다.
+
 ---
 
 ## 7. 게임 데이터 현황
@@ -250,7 +257,11 @@ v0.3에서 새로 생긴 값은 `unlockedRegions`, `regionGiftsGiven`, `discover
 | `smelter` | 제련소 | 목재 14, 돌 10, 광석 4 | 광석 | 불, 전기 |
 
 - 업그레이드: 생산 시설만, 최대 Lv.3. 비용은 건설 비용의 2배(Lv.2), 4배(Lv.3)다. 생산량은 레벨 배수.
-- 시설 위치는 종류별로 고정이다(`createInitialGame`, `build()` 안의 `positions`).
+- 시설 위치는 **격자 자유 배치**다. 마을은 가로 24 × 세로 15칸(`CONFIG.gridCols/gridRows`)이고, 건물은 3×2칸(`CONFIG.buildingCells`)을 차지한다. 처음 시설 3개의 자리는 `createInitialGame()`에 칸 번호로 적혀 있다.
+- 건설·옮기기 순서: "건설하기"·"옮기기" → 배치 모드(`ui.placing`, 저장 안 함) → 마을 그림의 칸 클릭 → `placeBuildingAt()`.
+  - 지을 때는 확정하는 순간 자원을 쓰고, 옮기기는 무료다.
+  - 놓을 수 있는지는 `canPlaceAt()`이 판단하고, 칸 계산은 `buildingCellsOf()`·`cellCenter()`가 맡는다.
+  - 미리보기는 `drawPlacement()`가 그린다.
 
 ### 특성 7종 (효과 문구 = 실제 동작)
 
@@ -302,7 +313,7 @@ npx playwright install chromium
 node tests/regression.js
 ```
 
-- 마지막 줄이 `총 168개 중 통과 168, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
+- 마지막 줄이 `총 180개 중 통과 180, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
 - 실제 Chromium 브라우저로 버튼을 누르고, 브라우저 시계만 앞으로 돌려 시간 경과를 흉내 낸다. 배포용 수치는 바꾸지 않는다.
 - 끝날 때 화면 크기별 스크린샷을 임시 폴더에 남긴다.
 
@@ -428,7 +439,7 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 - 같은 게임을 탭 두 개에서 열면 나중에 저장한 쪽이 덮어쓴다.
 - 휴대폰에서는 마을 그림이 작아져 이름표 글자가 매우 작다(기획상 대상은 PC).
-- 시설 위치는 고정이다(격자·자유 배치 없음). 숲은 마을 그림에 나오지 않는다.
+- 건물 철거는 없다. 건물은 모두 같은 크기(3×2칸)다. 숲은 마을 그림에 나오지 않는다.
 - 펫 걷기는 그림 한 장을 튀게 하는 방식이라 다리는 움직이지 않는다.
 - 글자 사이 작은 기호(🪵, ⚡, 💧 등)와 연출 기호(💤 💗 🎵)는 이모지다.
 - Chrome 외 브라우저, 실제 휴대폰 터치, 실제 24시간 연속 실행은 확인하지 못했다(`TEST_RESULTS.md` "확인하지 못한 것").
@@ -440,7 +451,7 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 다음은 기획서(`FINAL_DESIGN_REPORT.md`)에 있지만 길라잡이 순서에 없어 하지 않았다. 사용자가 요청할 때만 하나씩 한다.
 
-- 격자 기반 건물 자유 배치(`CONFIG.gridCols/gridRows`가 자리만 잡혀 있음)
+- 건물 철거(기획서의 "건물 업그레이드·철거·정교한 자유 배치" 중 남은 것)
 - 플레이어 직접 명령("여기로 이동")
 - 종족별 특성 경향(지금은 특성이 무작위), 친화력 특성(펫 간 상호작용 필요)
 - 제련소의 "가공"(지금은 광석을 그냥 생산)

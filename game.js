@@ -74,9 +74,11 @@ const CONFIG = {
   idleSecondsMin: 1.5,
   idleSecondsMax: 5,
 
-  // 격자 배치는 아직 구현 전이다(기획상 예정). 현재 코드에서는 사용하지 않는다.
-  gridCols: 12,
-  gridRows: 8
+  // 건물 배치 격자: 마을을 가로 gridCols × 세로 gridRows 칸으로 나눈다(마을 그림 960×600 기준 한 칸 40×40).
+  // 건물 하나는 buildingCells 칸(가로 w × 세로 h)을 차지하고, 다른 건물과 겹치거나 마을 밖으로 나가면 놓을 수 없다.
+  gridCols: 24,
+  gridRows: 15,
+  buildingCells: { w: 3, h: 2 }
 };
 
 const RESOURCES = {
@@ -219,7 +221,7 @@ let animationHandle = null;
 let game;
 let awaySnapshot = null;
 // 화면 조작 중인 값. 패널을 다시 그려도 선택이 풀리지 않도록 따로 기억한다(저장 데이터에는 넣지 않는다).
-const ui = { parentA: null, parentB: null, pendingWork: null, pendingName: null, selectedBuildingId: null };
+const ui = { parentA: null, parentB: null, pendingWork: null, pendingName: null, selectedBuildingId: null, placing: null };
 // 쓰다듬기·놀아주기 연출 상태(펫 ID → { type, startedAt, until }). 화면 연출용이라 저장하지 않는다.
 const petEffects = new Map();
 
@@ -285,9 +287,11 @@ function currentPetName(speciesId, savedName) {
 function defaultOpenRegions() { return Object.keys(REGIONS).filter(id => !REGIONS[id].unlock); }
 
 function createInitialGame() {
-  const plaza = { id: uid('building'), type: 'plaza', x: 0.5, y: 0.48, level: 1 };
-  const nursery = { id: uid('building'), type: 'nursery', x: 0.73, y: 0.35, level: 1 };
-  const farm = { id: uid('building'), type: 'farm', x: 0.28, y: 0.68, level: 1 };
+  // 처음 있는 시설 3개의 자리(격자 칸 번호: 왼쪽 위 칸의 열·행). 나중에 '옮기기'로 바꿀 수 있다.
+  const at = (type, col, row) => ({ id: uid('building'), type, ...cellCenter(col, row), level: 1 });
+  const plaza = at('plaza', 10, 6);
+  const nursery = at('nursery', 16, 4);
+  const farm = at('farm', 5, 9);
   const p1 = makePet('sproutbun', ['curious']);
   const p2 = makePet('pebblelamb', ['sturdy']);
   return {
@@ -321,6 +325,14 @@ function normalizeGame(saved) {
     ...b, id: b.id || uid('building'), level: Math.min(CONFIG.maxBuildingLevel, Math.max(1, Math.floor(Number(b.level)) || 1)),
     x: finite(b.x, .5), y: finite(b.y, .5)
   }));
+  // 건물을 격자 칸에 맞춘다. 예전 저장(종류별 고정 위치)이나 서로 겹친 위치는 가장 가까운 빈 칸으로 옮긴다.
+  const placed = [];
+  saved.buildings.forEach(b => {
+    const want = buildingCellsOf(b);
+    const cell = canPlaceAt(want.col, want.row, null, placed) ? want : nearestFreeCell(want.col, want.row, null, placed);
+    if (cell) Object.assign(b, cellCenter(cell.col, cell.row));
+    placed.push(b);
+  });
   const workplaceIds = new Set(saved.buildings.filter(b => BUILDING_TYPES[b.type].output).map(b => b.id));
 
   saved.pets = saved.pets.filter(p => p && SPECIES[p.speciesId]).map(p => {
@@ -449,6 +461,38 @@ function upgradeCost(building) {
   const cost = {};
   Object.entries(BUILDING_TYPES[building.type].cost).forEach(([key, value]) => { cost[key] = Math.ceil(value * multiplier); });
   return cost;
+}
+/* 건물 배치 격자 규칙.
+ * 건물 위치(x, y)는 그 건물이 차지하는 칸 묶음의 한가운데를 마을 너비·높이에 대한 비율(0~1)로 나타낸 값이다.
+ */
+function buildingCellsOf(building) {
+  const { w, h } = CONFIG.buildingCells;
+  return { col: Math.round(building.x * CONFIG.gridCols - w / 2), row: Math.round(building.y * CONFIG.gridRows - h / 2), w, h };
+}
+function cellCenter(col, row) {
+  const { w, h } = CONFIG.buildingCells;
+  return { x: (col + w / 2) / CONFIG.gridCols, y: (row + h / 2) / CONFIG.gridRows };
+}
+function cellsOverlap(a, b) { return a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h; }
+// (col, row)를 왼쪽 위로 하는 칸 묶음에 건물을 놓을 수 있는가. ignoreId: 옮기는 중인 건물 자신은 겹침 검사에서 뺀다.
+function canPlaceAt(col, row, ignoreId = null, buildings = game.buildings) {
+  const { w, h } = CONFIG.buildingCells;
+  if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || row < 0 || col + w > CONFIG.gridCols || row + h > CONFIG.gridRows) return false;
+  const area = { col, row, w, h };
+  return buildings.every(b => b.id === ignoreId || !cellsOverlap(area, buildingCellsOf(b)));
+}
+// 원하는 칸에서 가장 가까운 빈 자리를 찾는다(없으면 null).
+function nearestFreeCell(col, row, ignoreId = null, buildings = game.buildings) {
+  const { w, h } = CONFIG.buildingCells;
+  let best = null, bestDist = Infinity;
+  for (let r = 0; r + h <= CONFIG.gridRows; r++) {
+    for (let c = 0; c + w <= CONFIG.gridCols; c++) {
+      if (!canPlaceAt(c, r, ignoreId, buildings)) continue;
+      const dist = (c - col) ** 2 + (r - row) ** 2;
+      if (dist < bestDist) { best = { col: c, row: r }; bestDist = dist; }
+    }
+  }
+  return best;
 }
 function getWorkBuilding(pet) {
   const building = pet.workBuildingId ? getBuildingById(pet.workBuildingId) : null;
@@ -705,14 +749,23 @@ function renderSelectedBuildingPanel() {
   }
   const levelText = meta.output ? `Lv.${building.level}/${CONFIG.maxBuildingLevel}` : `Lv.${building.level}`;
   return `<div class="subheading"><span>선택한 시설</span><span class="count-pill">${levelText}</span></div>
-    <div class="info-box" data-selected-building="${building.id}"><b>${buildingIconHtml(building.type, true)} ${meta.name}</b><br>${lines.join('<br>')}</div>${workerList}`;
+    <div class="info-box" data-selected-building="${building.id}"><b>${buildingIconHtml(building.type, true)} ${meta.name}</b><br>${lines.join('<br>')}<button class="btn secondary full" style="margin-top:8px" data-move-building="${building.id}">옮기기</button></div>${workerList}`;
+}
+
+// 배치 모드 안내(건설하기·옮기기를 누른 뒤).
+function renderPlacingPanel() {
+  if (!ui.placing) return '';
+  const name = BUILDING_TYPES[ui.placing.type].name;
+  const what = ui.placing.mode === 'move' ? `${withParticle(name, '을', '를')} 옮길` : `${withParticle(name, '을', '를')} 지을`;
+  const cost = ui.placing.mode === 'build' ? `<br>칸을 누르면 자원(${costLabel(BUILDING_TYPES[ui.placing.type].cost)})을 쓰고 지어요.` : '<br>옮기기는 자원이 들지 않아요.';
+  return `<div class="info-box placing-box" data-placing="${ui.placing.mode}">🏗️ 마을 그림에서 ${what} 칸을 누르세요.<br>초록 칸 = 놓을 수 있음, 빨간 칸 = 다른 건물과 겹침.${cost}<button class="btn secondary full" style="margin-top:8px" id="cancelPlacingButton">취소 (Esc)</button></div>`;
 }
 
 function renderVillageTab() {
   const buildings = game.buildings.map(building => {
     const meta = BUILDING_TYPES[building.type];
     const workers = assignedCount(building.id);
-    if (!meta.output) return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>마을 주요 시설</small><div class="build-cost">Lv.${building.level}</div><button class="btn secondary" disabled>기본 시설</button></div>`;
+    if (!meta.output) return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>마을 주요 시설</small><div class="build-cost">Lv.${building.level}</div><button class="btn secondary" data-move-building="${building.id}">옮기기</button></div>`;
     let upgradeLine = '최대 레벨';
     let upgradeButton = '<button class="btn secondary" style="margin-top:5px" disabled>최대 레벨</button>';
     if (canUpgrade(building)) {
@@ -721,12 +774,12 @@ function renderVillageTab() {
       upgradeLine = `Lv.${building.level + 1} 비용: ${costLabel(cost)}`;
       upgradeButton = `<button class="btn ${affordable ? 'primary' : 'secondary'}" style="margin-top:5px" data-upgrade="${building.id}" ${affordable ? '' : 'disabled'}>업그레이드</button>`;
     }
-    return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>작업 펫 ${workers}/${meta.capacity}마리</small><div class="build-cost">Lv.${building.level}/${CONFIG.maxBuildingLevel} · 생산량 ×${building.level}<br>${upgradeLine}</div><button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>${upgradeButton}</div>`;
+    return `<div class="build-card"><div class="build-icon">${buildingIconHtml(building.type)}</div><strong>${meta.name}</strong><small>${meta.description}<br>작업 펫 ${workers}/${meta.capacity}마리</small><div class="build-cost">Lv.${building.level}/${CONFIG.maxBuildingLevel} · 생산량 ×${building.level}<br>${upgradeLine}</div><button class="btn secondary" data-focus-building="${building.id}">배치 관리</button>${upgradeButton}<button class="btn secondary" style="margin-top:5px" data-move-building="${building.id}">옮기기</button></div>`;
   }).join('');
   const available = Object.entries(BUILDING_TYPES).filter(([type, meta]) => meta.output && !getBuilding(type));
   const buildCards = available.map(([type, meta]) => `<div class="build-card"><div class="build-icon">${buildingIconHtml(type)}</div><strong>${meta.name}</strong><small>${meta.description}</small><div class="build-cost">${costLabel(meta.cost)}</div><button class="btn ${canAfford(meta.cost) ? 'primary' : 'secondary'}" data-build="${type}" ${canAfford(meta.cost) ? '' : 'disabled'}>건설하기</button></div>`).join('');
   return `<h2 class="section-title">마을 관리</h2><p class="section-description">작업장을 세우고 펫을 배치해 마을의 기반을 넓혀보세요.</p>
-    ${renderSelectedBuildingPanel()}
+    ${renderPlacingPanel()}${renderSelectedBuildingPanel()}
     <div class="subheading"><span>건설된 시설</span><span class="count-pill">${game.buildings.length}개</span></div><div class="build-grid">${buildings}</div>
     <div class="subheading"><span>새 시설 건설</span><span class="count-pill">자원 사용</span></div><div class="build-grid">${buildCards || '<div class="empty-state">모든 기본 생산 시설을 건설했어요.</div>'}</div>
     <div class="subheading"><span>지역</span><span class="count-pill">${game.unlockedRegions.length}/${Object.keys(REGIONS).length} 개방</span></div>${renderRegions()}
@@ -866,6 +919,9 @@ function bindPanelEvents() {
     renderAll();
   }));
   document.querySelectorAll('[data-build]').forEach(button => button.addEventListener('click', () => build(button.dataset.build)));
+  document.querySelectorAll('[data-move-building]').forEach(button => button.addEventListener('click', () => startMoving(button.dataset.moveBuilding)));
+  const cancelPlacingButton = $('#cancelPlacingButton');
+  if (cancelPlacingButton) cancelPlacingButton.addEventListener('click', cancelPlacing);
   document.querySelectorAll('[data-upgrade]').forEach(button => button.addEventListener('click', () => upgradeBuilding(button.dataset.upgrade)));
   document.querySelectorAll('[data-unlock-region]').forEach(button => button.addEventListener('click', () => unlockRegion(button.dataset.unlockRegion)));
   document.querySelectorAll('[data-focus-building]').forEach(button => button.addEventListener('click', () => {
@@ -906,16 +962,59 @@ function bindPanelEvents() {
   if (breedButton) breedButton.addEventListener('click', startBreeding);
 }
 
+/* 건설하기와 옮기기는 바로 일어나지 않고 '배치 모드'로 들어간다(ui.placing, 저장하지 않음).
+ * 마을 그림에서 칸을 누르면 placeBuildingAt()이 그 자리에 짓거나 옮긴다. 지을 때는 이때 자원을 쓰고, 옮기기는 무료다.
+ */
 function build(type) {
   const meta = BUILDING_TYPES[type];
   if (!meta || getBuilding(type)) return;
   if (!canAfford(meta.cost)) return toast('자원이 부족해요.');
-  pay(meta.cost);
-  const positions = { farm: [.28, .68], lumber: [.75, .73], quarry: [.18, .37], smelter: [.83, .52] };
-  const [x, y] = positions[type] || [.5, .5];
-  game.buildings.push({ id: uid('building'), type, x, y, level: 1 });
-  game.message = `${withParticle(meta.name, '을', '를')} 건설했어요.`;
-  saveGame(); renderAll(); toast(`${meta.name} 건설 완료!`);
+  startPlacing({ mode: 'build', type });
+}
+function startMoving(buildingId) {
+  const building = getBuildingById(buildingId);
+  if (!building) return;
+  startPlacing({ mode: 'move', type: building.type, buildingId });
+}
+function startPlacing(placing) {
+  const { w, h } = CONFIG.buildingCells;
+  const start = placing.mode === 'move' ? buildingCellsOf(getBuildingById(placing.buildingId))
+    : (nearestFreeCell(Math.floor((CONFIG.gridCols - w) / 2), Math.floor((CONFIG.gridRows - h) / 2)) || { col: 0, row: 0 });
+  ui.placing = { ...placing, col: start.col, row: start.row };
+  activeTab = 'village';
+  renderAll();
+  $('#panelContent').scrollTop = 0; // 메뉴 맨 위의 배치 안내가 보이게 한다.
+  toast(`마을 그림에서 ${withParticle(BUILDING_TYPES[placing.type].name, '을', '를')} ${placing.mode === 'move' ? '옮길' : '지을'} 칸을 누르세요.`);
+}
+function cancelPlacing() {
+  if (!ui.placing) return;
+  ui.placing = null;
+  renderAll();
+}
+// 성공하면 true. 놓을 수 없는 칸이면 배치 모드를 유지하고 false.
+function placeBuildingAt(col, row) {
+  const placing = ui.placing;
+  if (!placing) return false;
+  const meta = BUILDING_TYPES[placing.type];
+  const ignoreId = placing.mode === 'move' ? placing.buildingId : null;
+  if (!canPlaceAt(col, row, ignoreId)) { toast('여기에는 놓을 수 없어요. 다른 건물과 겹치지 않는 칸을 골라 주세요.'); return false; }
+  if (placing.mode === 'build') {
+    if (getBuilding(placing.type)) { ui.placing = null; renderAll(); return false; }
+    if (!canAfford(meta.cost)) { ui.placing = null; renderAll(); toast('자원이 부족해요.'); return false; }
+    pay(meta.cost);
+    game.buildings.push({ id: uid('building'), type: placing.type, ...cellCenter(col, row), level: 1 });
+    game.message = `${withParticle(meta.name, '을', '를')} 건설했어요.`;
+    toast(`${meta.name} 건설 완료!`);
+  } else {
+    const building = getBuildingById(placing.buildingId);
+    if (!building) { ui.placing = null; renderAll(); return false; }
+    Object.assign(building, cellCenter(col, row));
+    game.message = `${withParticle(meta.name, '을', '를')} 옮겼어요.`;
+    toast(game.message);
+  }
+  ui.placing = null;
+  saveGame(); renderAll();
+  return true;
 }
 
 function upgradeBuilding(buildingId) {
@@ -1143,7 +1242,7 @@ function petSpriteFor(pet) {
   return layer;
 }
 
-/* 풀밭과 길: 마을 크기의 1/4 캔버스에 점 단위로 칠한 뒤 4배로 키워 픽셀아트처럼 보이게 한다.
+/* 풀밭 배경: 마을 크기의 1/4 캔버스에 점 단위로 칠한 뒤 4배로 키워 픽셀아트처럼 보이게 한다. 길은 없고, 건물은 풀밭 위 원하는 칸에 놓인다.
  * 바뀌지 않는 그림이므로 처음 한 번만 만들어 두고 재사용한다(같은 씨앗값이라 매번 같은 모양).
  */
 const BACKGROUND_SCALE = 4;
@@ -1157,19 +1256,10 @@ function buildBackground() {
   const cols = Math.round(canvas.width / BACKGROUND_SCALE), rows = Math.round(canvas.height / BACKGROUND_SCALE);
   const layer = document.createElement('canvas'); layer.width = cols; layer.height = rows;
   const g = layer.getContext('2d');
-  // 길 모양: 예전과 같은 곡선을 작은 캔버스에 그려 "길인 칸" 목록을 만든다.
-  g.strokeStyle = '#000'; g.lineWidth = 58 / BACKGROUND_SCALE; g.lineCap = 'round'; g.beginPath();
-  g.moveTo(cols * .47, rows * .52); g.bezierCurveTo(cols * .38, rows * .58, cols * .39, rows * .76, cols * .24, rows * .83);
-  g.moveTo(cols * .49, rows * .52); g.bezierCurveTo(cols * .62, rows * .53, cols * .68, rows * .64, cols * .81, rows * .7); g.stroke();
-  const mask = g.getImageData(0, 0, cols, rows).data;
-  const path = new Uint8Array(cols * rows);
-  for (let i = 0; i < path.length; i++) path[i] = mask[i * 4 + 3] >= 128 ? 1 : 0;
-  const onPath = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && path[y * cols + x] === 1;
   // 풀밭: 왼쪽 위는 밝고 오른쪽 아래는 어둡게, 큰 얼룩과 작은 풀포기를 섞는다.
   const random = seededRandom(20261113);
   const grass = ['#2a7136', '#2e7a3b', '#32823f', '#368a43', '#3a9147', '#3f984b'].map(hexToRgb);
   const tuftDark = hexToRgb('#246530'), tuftLight = hexToRgb('#4fa857');
-  const dirt = ['#c9a96b', '#d1b376', '#d8bd82'].map(hexToRgb), dirtEdge = hexToRgb('#8f7244'), pebble = hexToRgb('#b4945b');
   const cell = 10, gw = Math.ceil(cols / cell) + 2, gh = Math.ceil(rows / cell) + 2;
   const coarse = Array.from({ length: gw * gh }, () => random());
   const noise = (x, y) => {
@@ -1179,33 +1269,24 @@ function buildBackground() {
   };
   const image = g.createImageData(cols, rows);
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-    let color;
-    if (onPath(x, y)) {
-      const edge = !onPath(x - 1, y) || !onPath(x + 1, y) || !onPath(x, y - 1) || !onPath(x, y + 1);
-      const r = random();
-      color = edge ? dirtEdge : r < .04 ? pebble : dirt[Math.min(2, Math.floor((noise(cols - 1 - x, rows - 1 - y) * .7 + r * .3) * 3))];
-    } else {
-      const light = 1 - (x / cols + y / rows) / 2;
-      const v = light * .35 + noise(x, y) * .65 + (random() - .5) * .05;
-      color = grass[Math.max(0, Math.min(grass.length - 1, Math.floor(v * grass.length)))];
-      const r = random();
-      if (r < .008) color = tuftDark; else if (r < .013) color = tuftLight;
-    }
+    const light = 1 - (x / cols + y / rows) / 2;
+    const v = light * .35 + noise(x, y) * .65 + (random() - .5) * .05;
+    let color = grass[Math.max(0, Math.min(grass.length - 1, Math.floor(v * grass.length)))];
+    const r = random();
+    if (r < .008) color = tuftDark; else if (r < .013) color = tuftLight;
     const i = (y * cols + x) * 4;
     image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
   }
   g.putImageData(image, 0, 0);
-  return { canvas: layer, path, cols, rows };
+  return { canvas: layer, cols, rows };
 }
-function isOnPathPixel(px, py) {
-  if (!backgroundLayer) return false;
-  const x = Math.floor(px / BACKGROUND_SCALE), y = Math.floor(py / BACKGROUND_SCALE);
-  return x >= 0 && y >= 0 && x < backgroundLayer.cols && y < backgroundLayer.rows && backgroundLayer.path[y * backgroundLayer.cols + x] === 1;
-}
-
-/* 장식(나무·덤불·꽃·바위) 자리. 정해진 후보 자리 중에서 길, 광장 주변, 지어진 시설, 화면 왼쪽 아래 안내판과 겹치는 곳은 건너뛴다.
- * 시설을 새로 지으면 그 자리의 장식은 사라진다(나무를 베고 지은 것처럼).
+/* 장식(나무·덤불·꽃·바위) 자리. 정해진 후보 자리 중에서 지어진 시설(그림과 이름표 범위), 화면 왼쪽 아래 안내판과 겹치는 곳은 건너뛴다.
+ * 시설을 짓거나 옮기면 그 자리의 장식은 사라지고, 비운 자리에는 다시 나타난다(나무를 베고 지은 것처럼).
  */
+function decorHitsBuilding(x, y, size, building) {
+  const bx = building.x * canvas.width, by = building.y * canvas.height;
+  return x + size / 2 > bx - 64 && x - size / 2 < bx + 64 && y > by - 62 && y - size < by + 64;
+}
 const DECOR_KINDS = ['tree', 'pine', 'bush', 'tree', 'flowers', 'pine', 'rock', 'tree', 'bush', 'flowers'];
 const DECOR_SIZES = { tree: 64, pine: 64, bush: 44, flowers: 36, rock: 36 }; // 화면 크기(그림 크기의 2배)
 function decorPlacements() {
@@ -1213,10 +1294,8 @@ function decorPlacements() {
   for (let i = 0; i < 30; i++) {
     const x = ((i * 211) % (w - 80)) + 40, y = ((i * 127 + 30) % (h - 90)) + 52;
     const kind = DECOR_KINDS[i % DECOR_KINDS.length], size = DECOR_SIZES[kind];
-    if (Math.abs(x - w * .5) < 110 && Math.abs(y - h * .5) < 90) continue;
     if (x < 200 && y > h - 80) continue;
-    if ([[-size / 3, 0], [0, 0], [size / 3, 0], [0, -size / 3]].some(([dx, dy]) => isOnPathPixel(x + dx, y + dy))) continue;
-    if (game.buildings.some(b => Math.abs(b.x * w - x) < 64 + size / 3 && y > b.y * h - 80 && y < b.y * h + 60)) continue;
+    if (game.buildings.some(b => decorHitsBuilding(x, y, size, b))) continue;
     if (list.some(d => Math.abs(d.x - x) < (d.size + size) / 2.2 && Math.abs(d.y - y) < 26)) continue;
     list.push({ kind, x, y, size });
   }
@@ -1243,15 +1322,43 @@ function drawVillage() {
   ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(backgroundLayer.canvas, 0, 0, w, h); ctx.restore();
   const items = [];
   decorPlacements().forEach(item => items.push({ y: item.y, draw: () => drawDecor(item) }));
-  game.buildings.forEach(building => items.push({ y: building.y * h + 28, draw: () => drawBuilding(building) }));
-  // 알은 교배장 옆에 놓는다.
+  game.buildings.forEach(building => items.push({ y: building.y * h + 40, draw: () => drawBuilding(building) }));
+  // 알은 교배장 오른쪽 옆에 놓는다(오른쪽 끝이라 자리가 없으면 왼쪽).
   const nursery = getBuilding('nursery');
-  const eggX = nursery ? nursery.x * w + 66 : w * .52, eggY = nursery ? nursery.y * h - 6 : h * .78;
+  const nx = nursery ? nursery.x * w : w * .5, ny = nursery ? nursery.y * h : h * .5;
+  const eggRight = nx + 66 + 22 < w - 8;
+  const eggX = eggRight ? nx + 66 : nx - 66 - 22, eggY = ny + 6;
   game.eggs.forEach((egg, index) => { const ex = eggX + (index % 2) * 22, ey = eggY + Math.floor(index / 2) * 22; items.push({ y: ey + 9, draw: () => drawEgg(ex, ey) }); });
   game.pets.forEach(pet => items.push({ y: pet.y * h + 16, draw: () => drawPet(pet) }));
   items.sort((a, b) => a.y - b.y).forEach(item => item.draw());
   // 시설 이름표는 맨 마지막에 그려 펫이나 나무에 가리지 않게 한다.
   game.buildings.forEach(drawBuildingLabel);
+  if (ui.placing) drawPlacement();
+}
+// 배치 모드: 격자 선과 놓을 자리 미리보기(초록 = 놓을 수 있음, 빨강 = 겹침)를 그린다.
+function drawPlacement() {
+  const placing = ui.placing;
+  const cw = canvas.width / CONFIG.gridCols, ch = canvas.height / CONFIG.gridRows;
+  const { w, h } = CONFIG.buildingCells;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.13)'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let c = 1; c < CONFIG.gridCols; c++) { ctx.moveTo(Math.round(c * cw) + .5, 0); ctx.lineTo(Math.round(c * cw) + .5, canvas.height); }
+  for (let r = 1; r < CONFIG.gridRows; r++) { ctx.moveTo(0, Math.round(r * ch) + .5); ctx.lineTo(canvas.width, Math.round(r * ch) + .5); }
+  ctx.stroke();
+  // 다른 건물이 차지한 칸은 살짝 어둡게
+  ctx.fillStyle = 'rgba(10,20,12,.22)';
+  game.buildings.forEach(b => { if (placing.mode === 'move' && b.id === placing.buildingId) return; const cell = buildingCellsOf(b); ctx.fillRect(cell.col * cw, cell.row * ch, cell.w * cw, cell.h * ch); });
+  const ok = canPlaceAt(placing.col, placing.row, placing.mode === 'move' ? placing.buildingId : null);
+  const left = placing.col * cw, top = placing.row * ch;
+  ctx.fillStyle = ok ? 'rgba(90,230,120,.32)' : 'rgba(240,80,80,.36)'; ctx.fillRect(left, top, w * cw, h * ch);
+  ctx.strokeStyle = ok ? '#8ff5a5' : '#ff8c8c'; ctx.lineWidth = 2; ctx.strokeRect(left + 1, top + 1, w * cw - 2, h * ch - 2);
+  // 지을(옮길) 건물을 반투명하게 미리 보여 준다.
+  const image = readySprite(`building:${placing.type}`);
+  const cx = left + w * cw / 2, by = top + h * ch;
+  ctx.globalAlpha = .72;
+  if (image) { ctx.imageSmoothingEnabled = false; ctx.drawImage(image, Math.round(cx) - 60, Math.round(by) - 100, 120, 100); }
+  else { ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(BUILDING_TYPES[placing.type].icon, cx, by - 30); }
+  ctx.restore();
 }
 function drawTree(x, y, scale) {
   ctx.fillStyle = 'rgba(34,74,43,.22)'; ctx.beginPath(); ctx.ellipse(x+5,y+12,22*scale,10*scale,0,0,Math.PI*2); ctx.fill();
@@ -1266,7 +1373,8 @@ function roundedRectPath(x, y, width, height, radius) {
   else ctx.rect(x, y, width, height);
 }
 function drawBuilding(building) {
-  const x = building.x * canvas.width, y = building.y * canvas.height;
+  // building.y는 차지한 칸 묶음의 한가운데다. 그림 기준점 y는 그보다 12px 아래(그림 아래 끝 = 칸 묶음 아래 끝).
+  const x = building.x * canvas.width, y = building.y * canvas.height + 12;
   const info = BUILDING_TYPES[building.type];
   ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,55,16,0,0,Math.PI*2); ctx.fill();
   const buildingImage = readySprite(`building:${building.type}`);
@@ -1289,7 +1397,7 @@ function drawBuilding(building) {
 }
 // 시설 이름표: 어두운 바탕 위에 이름과 작업 펫 수를 쓴다.
 function drawBuildingLabel(building) {
-  const x = Math.round(building.x * canvas.width), y = Math.round(building.y * canvas.height) + 41;
+  const x = Math.round(building.x * canvas.width), y = Math.round(building.y * canvas.height) + 53;
   const info = BUILDING_TYPES[building.type];
   const count = info.capacity ? `${assignedCount(building.id)}/${info.capacity}` : '';
   ctx.save(); ctx.textBaseline = 'middle';
@@ -1378,7 +1486,7 @@ function movePets(delta) {
       // 작업 중: 작업장 옆으로 이동해 머문다(첫 번째 펫은 오른쪽, 두 번째 펫은 왼쪽). 시설 이름표를 가리지 않도록 옆에 선다.
       const slot=game.pets.filter(p=>p.workBuildingId===workingBuilding.id).indexOf(pet);
       const side=slot%2===0?1:-1;
-      pet.targetX=clamp(workingBuilding.x+side*(.075+Math.floor(slot/2)*.04),.06,.94);pet.targetY=clamp(workingBuilding.y+.045,.08,.9);
+      pet.targetX=clamp(workingBuilding.x+side*(.075+Math.floor(slot/2)*.04),.06,.94);pet.targetY=clamp(workingBuilding.y+.065,.08,.94);
       pet.idleTimer=null;
     } else if(isResting(pet)){
       // 휴식 중: 제자리에서 쉰다.
@@ -1412,18 +1520,34 @@ function animationLoop(timestamp) {
   animationHandle=requestAnimationFrame(animationLoop);
 }
 
-function handleCanvasClick(event) {
+// 화면 좌표 → 마을 그림 좌표
+function canvasPoint(event) {
   const rect=canvas.getBoundingClientRect();
-  const scale=canvas.width/rect.width;
-  const x=(event.clientX-rect.left)*scale;
-  const y=(event.clientY-rect.top)/rect.height*canvas.height;
+  return { x:(event.clientX-rect.left)/rect.width*canvas.width, y:(event.clientY-rect.top)/rect.height*canvas.height, scale:canvas.width/rect.width };
+}
+// 누른(가리킨) 곳이 건물 칸 묶음의 한가운데가 되도록 왼쪽 위 칸 번호를 구한다(마을 밖으로 나가지 않게 맞춤).
+function cellFromPoint(x, y) {
+  const { w, h } = CONFIG.buildingCells;
+  const col=Math.round(x/(canvas.width/CONFIG.gridCols)-w/2), row=Math.round(y/(canvas.height/CONFIG.gridRows)-h/2);
+  return { col:clamp(col,0,CONFIG.gridCols-w), row:clamp(row,0,CONFIG.gridRows-h) };
+}
+function handleCanvasMove(event) {
+  if(!ui.placing)return;
+  const p=canvasPoint(event), cell=cellFromPoint(p.x,p.y);
+  ui.placing.col=cell.col;ui.placing.row=cell.row;
+}
+function handleCanvasClick(event) {
+  const p=canvasPoint(event);
+  const x=p.x, y=p.y, scale=p.scale;
+  // 배치 모드에서는 누른 칸에 짓거나 옮긴다(펫·시설 선택은 하지 않음).
+  if(ui.placing){const cell=cellFromPoint(x,y);ui.placing.col=cell.col;ui.placing.row=cell.row;placeBuildingAt(cell.col,cell.row);return;}
   // 화면이 작아 캔버스가 축소돼도 손가락으로 누를 수 있도록 판정 범위를 화면 기준 최소 24px로 유지한다.
   const hitRadius=Math.max(30,24*scale);
   let nearest=null,nearestDist=Infinity;
   game.pets.forEach(p=>{const d=Math.hypot(p.x*canvas.width-x,p.y*canvas.height-y);if(d<hitRadius&&d<nearestDist){nearest=p;nearestDist=d;}});
   if(nearest){selectPet(nearest.id);activeTab='pets';renderAll();return;}
   // 펫이 없는 곳을 눌렀으면 시설을 눌렀는지 본다(시설 그림의 대략적인 범위).
-  const hit=game.buildings.find(b=>Math.abs(b.x*canvas.width-x)<58&&y>b.y*canvas.height-64&&y<b.y*canvas.height+48);
+  const hit=game.buildings.find(b=>Math.abs(b.x*canvas.width-x)<58&&y>b.y*canvas.height-52&&y<b.y*canvas.height+60);
   if(hit){ui.selectedBuildingId=hit.id;activeTab='village';renderAll();}
 }
 
@@ -1435,14 +1559,17 @@ function tick() {
 }
 
 function bindGlobalEvents() {
-  document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{activeTab=tab.dataset.tab;renderAll();}));
+  // 다른 탭으로 가면 배치 모드는 취소한다.
+  document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{activeTab=tab.dataset.tab;if(activeTab!=='village')ui.placing=null;renderAll();}));
   canvas.addEventListener('click',handleCanvasClick);
+  canvas.addEventListener('mousemove',handleCanvasMove);
+  document.addEventListener('keydown',(event)=>{if(event.key==='Escape')cancelPlacing();});
   $('#helpButton').addEventListener('click',()=>$('#helpDialog').showModal());
   $('#closeHelp').addEventListener('click',()=>$('#helpDialog').close());
   $('#resetButton').addEventListener('click',()=>{
     if(confirm('현재 마을 저장 데이터를 삭제하고 처음부터 시작할까요?')){
       localStorage.removeItem(CONFIG.saveKey);game=createInitialGame();
-      ui.parentA=null;ui.parentB=null;ui.pendingWork=null;ui.pendingName=null;ui.selectedBuildingId=null;petEffects.clear();awaySnapshot=null;
+      ui.parentA=null;ui.parentB=null;ui.pendingWork=null;ui.pendingName=null;ui.selectedBuildingId=null;ui.placing=null;petEffects.clear();awaySnapshot=null;
       selectedPetId=game.pets[0].id;saveGame();renderAll();toast('새로운 마을을 시작합니다.');
     }
   });
