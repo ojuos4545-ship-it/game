@@ -1,7 +1,7 @@
 # Little Haven — AI 작업 규칙 (GPT·Codex용)
 
 이 파일은 Codex 같은 AI 코딩 도구가 이 저장소에서 시작할 때 읽는 규칙이다. 내용은 `CLAUDE.md`와 같고, 두 파일을 함께 고친다.
-**처음 작업하는 AI는 `HANDOFF.md`(인계 문서)를 먼저 끝까지 읽는다.** 전체 기획은 `FINAL_DESIGN_REPORT.md`, 현재 구현 상태는 `IMPLEMENTATION_STATUS.md`, 개발 순서는 `DEVELOPMENT_GUIDE.md`에 있다.
+**처음 작업하는 AI는 `HANDOFF.md`(인계 문서)를 먼저 끝까지 읽는다(지금 상태, 남은 일, 적용 대기 중인 제안, 주의할 점).** 전체 기획은 `FINAL_DESIGN_REPORT.md`, 현재 구현 상태는 `IMPLEMENTATION_STATUS.md`, 개발 순서는 `DEVELOPMENT_GUIDE.md`에 있다.
 
 ## 프로젝트
 

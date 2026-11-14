@@ -89,4 +89,5 @@
 - `DEVELOPMENT_GUIDE.md`: PC에서 Claude Code로 이어서 개발하는 단계별 길라잡이
 - `CLAUDE.md`: Claude Code가 자동으로 읽는 프로젝트 작업 규칙
 - `AGENTS.md`: GPT·Codex 같은 다른 AI 도구용 작업 규칙(`CLAUDE.md`와 같은 내용)
-- `HANDOFF.md`: 다른 AI로 작업을 이어 갈 때 읽는 인계 문서(지금까지 한 일, 코드 구조, 남은 일, 주의할 점)
+- `HANDOFF.md`: 다른 AI나 다른 컴퓨터(PC의 Claude Code 등)로 작업을 이어 갈 때 읽는 인계 문서(지금까지 한 일, 코드 구조, 남은 일, 주의할 점, PC에서 시작하는 순서)
+- `proposals/`: 시험판만 보여 주고 아직 적용하지 않은 변경(지금은 새 초원 배경). 게임 실행에는 쓰지 않음

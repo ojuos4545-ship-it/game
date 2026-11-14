@@ -1,6 +1,6 @@
 # Little Haven — Claude Code 작업 규칙
 
-이 파일은 Claude Code가 이 폴더에서 시작할 때 자동으로 읽는다. 다른 AI 도구용으로 같은 내용의 `AGENTS.md`가 있으니 규칙을 바꾸면 두 파일을 함께 고친다. 작업 인계 내용은 `HANDOFF.md`에 있다. 전체 기획은 `FINAL_DESIGN_REPORT.md`, 현재 구현 상태는 `IMPLEMENTATION_STATUS.md`, 개발 순서는 `DEVELOPMENT_GUIDE.md`에 있다.
+이 파일은 Claude Code가 이 폴더에서 시작할 때 자동으로 읽는다. 다른 AI 도구용으로 같은 내용의 `AGENTS.md`가 있으니 규칙을 바꾸면 두 파일을 함께 고친다. 작업 인계 내용은 `HANDOFF.md`에 있다. 새 대화를 시작하면 `HANDOFF.md`를 먼저 끝까지 읽는다(지금 상태, 남은 일, 적용 대기 중인 제안, 주의할 점). 전체 기획은 `FINAL_DESIGN_REPORT.md`, 현재 구현 상태는 `IMPLEMENTATION_STATUS.md`, 개발 순서는 `DEVELOPMENT_GUIDE.md`에 있다.
 
 ## 프로젝트
 
