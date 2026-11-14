@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
 // 기본값: 이 폴더 옆의 index.html을 파일로 직접 연다(서버 불필요). 다른 주소로 검사하려면 LH_URL 환경변수를 준다.
 const URL = process.env.LH_URL || require('url').pathToFileURL(require('path').join(__dirname, '..', 'index.html')).href;
 const SHOT_DIR = require('os').tmpdir();
-const SPECIES_NAME_MOSSBEAR = '끼고미'; // 종족 이름은 임시다. 이름을 바꾸면 여기도 함께 바꾼다.
+const SPECIES_NAME_MOSSBEAR = '이꼼'; // 이꼼(이끼 곰)의 종족 이름. 이름을 바꾸면 여기도 함께 바꾼다.
 const results = [];
 function check(name, ok, detail='') { results.push({ name, ok: !!ok, detail }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  → ' + detail : '')); }
 // 건설하기를 누른 뒤 마을 그림의 빈 칸(왼쪽 위에서 가장 가까운 곳)을 눌러 짓는다. 건물 자유 배치 이후의 건설 방법.
@@ -259,7 +259,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.click(unlockSel);
   const gift = await page.evaluate(() => ({ pets: game.pets.length, last: game.pets[game.pets.length - 1].speciesId, name: game.pets[game.pets.length - 1].name, dex: game.discoveredSpecies.includes('mossbear'), given: game.regionGiftsGiven.slice(), msg: game.message }));
   check('5-3 개방 전 카드에 선물 안내 표시', giftBefore.text.includes('개방하면 이 지역의 펫 1마리가 합류해요'));
-  check('5-3 개방 선물: 끼고미 1마리 합류 + 도감 등록', gift.pets === giftBefore.pets + 1 && gift.last === 'mossbear' && gift.name === SPECIES_NAME_MOSSBEAR && gift.dex && JSON.stringify(gift.given) === '["forest"]' && gift.msg.includes(SPECIES_NAME_MOSSBEAR), JSON.stringify(gift));
+  check('5-3 개방 선물: 이꼼 1마리 합류 + 도감 등록', gift.pets === giftBefore.pets + 1 && gift.last === 'mossbear' && gift.name === SPECIES_NAME_MOSSBEAR && gift.dex && JSON.stringify(gift.given) === '["forest"]' && gift.msg.includes(SPECIES_NAME_MOSSBEAR), JSON.stringify(gift));
   check('5-3 선물은 한 번만 지급', await page.evaluate(() => { const n = game.pets.length; const again = grantPendingRegionGifts(); return !again && game.pets.length === n; }));
   const reg1 = await page.evaluate(() => ({ regions: game.unlockedRegions.slice(), wood: game.resources.wood, stone: game.resources.stone, text: document.querySelector('[data-region="forest"]').textContent, button: !!document.querySelector('[data-unlock-region]'), saved: JSON.parse(localStorage.getItem(CONFIG.saveKey)).unlockedRegions }));
   check('5-3 개방 → 목재 -100, 돌 -60, 즉시 저장', JSON.stringify(reg1.regions) === '["meadow","forest"]' && reg1.wood === 30 && reg1.stone === 10 && reg1.saved.includes('forest'), JSON.stringify(reg1));
@@ -379,11 +379,11 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-2 숲 개방 전에는 숲 종족이 태어나지 않음(6만 회)', forest.lockedForest === 0, String(forest.lockedForest));
   check('6-2 숲 개방 후 숲 종족이 새 종족으로 발견됨(≈18%)', Math.abs(forest.discoverRate - .18) < .02, forest.discoverRate.toFixed(3));
   check('6-2 발견 추첨에서 조합 전용 종족은 나오지 않음, 일반이 희귀보다 자주', forest.discoverBreedOnly === 0 && Math.min(forest.commonVsRare[0], forest.commonVsRare[1]) > Math.max(forest.commonVsRare[2], forest.commonVsRare[3]), JSON.stringify(forest.commonVsRare));
-  check('6-2 슬달이+산들우 → 아슴이 ≈20%, 나머지는 부모 종족(부모 순서 무관)', Math.abs(forest.mistRate - .2) < .02 && Math.abs(forest.mistReverseRate - .2) < .02 && Object.keys(forest.mist).sort().join() === 'breezefox,dewotter,mistdeer', JSON.stringify(forest.mist));
-  check('6-2 몽양이+끼고미 → 나북이 ≈20%, 나머지는 부모 종족', Math.abs(forest.turtleRate - .2) < .02 && Object.keys(forest.turtle).sort().join() === 'elderturtle,mossbear,pebblelamb', JSON.stringify(forest.turtle));
+  check('6-2 퐁달+살랑이 → 안슴 ≈20%, 나머지는 부모 종족(부모 순서 무관)', Math.abs(forest.mistRate - .2) < .02 && Math.abs(forest.mistReverseRate - .2) < .02 && Object.keys(forest.mist).sort().join() === 'breezefox,dewotter,mistdeer', JSON.stringify(forest.mist));
+  check('6-2 몽글이+이꼼 → 뚜북 ≈20%, 나머지는 부모 종족', Math.abs(forest.turtleRate - .2) < .02 && Object.keys(forest.turtle).sort().join() === 'elderturtle,mossbear,pebblelamb', JSON.stringify(forest.turtle));
   check('6-2 다른 조합에서는 조합 전용 종족이 나오지 않음(8만 회)', forest.breedOnlyElsewhere === 0, String(forest.breedOnlyElsewhere));
   check('6-2 조합 전용 종족끼리 교배하면 같은 종족이 나올 수 있음', (forest.sameBreedOnlyParents.mistdeer || 0) > 0 && !forest.sameBreedOnlyParents.elderturtle, JSON.stringify(forest.sameBreedOnlyParents));
-  check('6-2 숲 개방 후 기본 규칙에 숲 종족 포함(몽양이+도토람 → 땅 속성 2종)', Object.keys(forest.defaultForest).sort().join() === 'acornsquirrel,pebblelamb', JSON.stringify(forest.defaultForest));
+  check('6-2 숲 개방 후 기본 규칙에 숲 종족 포함(몽글이+꼬톨이 → 땅 속성 2종)', Object.keys(forest.defaultForest).sort().join() === 'acornsquirrel,pebblelamb', JSON.stringify(forest.defaultForest));
   // 화면: 숲 개방 상태의 도감 + 숲 종족 부화
   const forestUi = await page.evaluate(() => {
     game.unlockedRegions = ['meadow', 'forest']; game.regionGiftsGiven = ['forest'];   // 이후 검사(9 새로고침 유지)를 위해 개방 상태로 둔다
@@ -394,8 +394,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     return { hatched: game.pets.length === n + 1 && game.pets[game.pets.length - 1].speciesId === 'elderturtle', dexUp: game.discoveredSpecies.length === dex + 1, msg: game.message,
       forestHead: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent), panel: document.querySelector('#panelContent').textContent, canvasOk: (() => { drawVillage(); return true; })() };
   });
-  check('6-2 숲 종족 알 부화 → 펫 추가·도감 등록·발견 알림', forestUi.hatched && forestUi.dexUp && forestUi.msg.includes('나북이'), forestUi.msg);
-  check('6-2 도감: 숲 개방 후 숲 1/9, 미발견 조합 전용은 "특별한 부모 조합 필요", 복합 속성은 "특별한 속성 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 9') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && forestUi.hints.filter(h => h === '특별한 속성 조합 필요').length === 3 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('나북이') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
+  check('6-2 숲 종족 알 부화 → 펫 추가·도감 등록·발견 알림', forestUi.hatched && forestUi.dexUp && forestUi.msg.includes('뚜북'), forestUi.msg);
+  check('6-2 도감: 숲 개방 후 숲 1/9, 미발견 조합 전용은 "특별한 부모 조합 필요", 복합 속성은 "특별한 속성 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 9') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && forestUi.hints.filter(h => h === '특별한 속성 조합 필요').length === 3 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('뚜북') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
 
   // ---------- 6-3. 복합 속성(속성 2개) ----------
   const dual = await page.evaluate(() => {
@@ -412,7 +412,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const frog = run('sproutbun', 'dewotter'), frogReverse = run('dewotter', 'sproutbun'), fly = run('embergecko', 'sparkchick'), ham = run('pebblelamb', 'breezefox');
     out.frog = frog; out.rates = [frog.lotusfrog / N, frogReverse.lotusfrog / N, fly.flarefly / N, ham.sandhamster / N];
     out.wrongPair = sumDual(run('sproutbun', 'pebblelamb')) + sumDual(run('dewotter', 'embergecko')) + sumDual(run('sproutbun', 'sproutbun'));
-    // 복합 속성 부모: 두 속성 모두 자식 후보에 반영된다(연구리=물·풀 + 불또마=불 → 물·풀·불 종족)
+    // 복합 속성 부모: 두 속성 모두 자식 후보에 반영된다(연개롱=물·풀 + 불콩=불 → 물·풀·불 종족)
     out.dualParent = Object.keys(run('lotusfrog', 'embergecko')).sort();
     out.dualSame = run('lotusfrog', 'lotusfrog').lotusfrog > 0;
     // 작업 적성: 두 속성 중 하나라도 맞으면 보너스
@@ -818,7 +818,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   const retro = await page.evaluate(() => ({ pets: game.pets.map(p => p.speciesId), given: game.regionGiftsGiven, dex: game.discoveredSpecies.includes('mossbear') }));
   await page.reload(); await page.waitForTimeout(400);
   const retro2 = await page.evaluate(() => game.pets.length);
-  check('12 숲을 이미 연 예전 저장: 열 때 끼고미 소급 지급, 다시 열어도 중복 지급 없음', retro.pets.length === 3 && retro.pets[2] === 'mossbear' && retro.given.includes('forest') && retro.dex && retro2 === 3, JSON.stringify({ retro, retro2 }));
+  check('12 숲을 이미 연 예전 저장: 열 때 이꼼 소급 지급, 다시 열어도 중복 지급 없음', retro.pets.length === 3 && retro.pets[2] === 'mossbear' && retro.given.includes('forest') && retro.dex && retro2 === 3, JSON.stringify({ retro, retro2 }));
   await ctx.close();
   for (const [label, bad] of [['깨진 JSON', '{oops'], ['빈 객체', '{}'], ['값 손상', JSON.stringify({ ...oldSave, resources: { wood: null, stone: 'x', plant: -5 }, buildings: [{ type: 'farm' }, { type: 'ghost' }], pets: [{ speciesId: 'sproutbun', workBuildingId: 'nope', energy: 'a', traits: ['zzz', 'smart', 'smart'], productionProgress: 9999 }, { speciesId: 'unknown' }], eggs: [{ result: { speciesId: 'nope' } }, null], discoveredSpecies: null })]]) {
     ctx = await browser.newContext(); page = await ctx.newPage(); const e2 = []; page.on('pageerror', x => e2.push(x.message));

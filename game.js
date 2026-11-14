@@ -122,24 +122,24 @@ const RARITIES = {
  * breedOnly: true면 BREEDING_RULES에 등록된 부모 조합에서만 태어난다(새 종족 발견 추첨과 기본 규칙에서 제외).
  */
 const SPECIES = {
-  sproutbun: { name: '싹총이', icon: '🐰', image: 'assets/pets/sproutbun.png', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
-  pebblelamb: { name: '몽양이', icon: '🐑', image: 'assets/pets/pebblelamb.png', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
-  dewotter: { name: '슬달이', icon: '🦦', image: 'assets/pets/dewotter.png', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
-  breezefox: { name: '산들우', icon: '🦊', image: 'assets/pets/breezefox.png', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
-  embergecko: { name: '불또마', icon: '🦎', image: 'assets/pets/embergecko.png', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
-  sparkchick: { name: '번아리', icon: '🐥', image: 'assets/pets/sparkchick.png', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
+  sproutbun: { name: '뽀싹', icon: '🐰', image: 'assets/pets/sproutbun.png', element: 'grass', color: '#c9d99a', rarity: 'common', region: 'meadow', description: '새싹을 좋아하는 온순한 초원 펫.' },
+  pebblelamb: { name: '몽글이', icon: '🐑', image: 'assets/pets/pebblelamb.png', element: 'earth', color: '#d9c7a5', rarity: 'common', region: 'meadow', description: '튼튼한 발굽으로 땅을 다지는 펫.' },
+  dewotter: { name: '퐁달', icon: '🦦', image: 'assets/pets/dewotter.png', element: 'water', color: '#8cc6d8', rarity: 'common', region: 'meadow', description: '맑은 물가를 찾아다니는 호기심 많은 펫.' },
+  breezefox: { name: '살랑이', icon: '🦊', image: 'assets/pets/breezefox.png', element: 'wind', color: '#e8b58a', rarity: 'rare', region: 'meadow', description: '바람처럼 빠르게 숲을 누비는 펫.' },
+  embergecko: { name: '불콩', icon: '🦎', image: 'assets/pets/embergecko.png', element: 'fire', color: '#df916e', rarity: 'rare', region: 'meadow', description: '따뜻한 바위에서 쉬기를 좋아한다.' },
+  sparkchick: { name: '삐릿', icon: '🐥', image: 'assets/pets/sparkchick.png', element: 'electric', color: '#e7d779', rarity: 'rare', region: 'meadow', description: '작은 몸에 반짝이는 에너지를 품고 있다.' },
 
-  mossbear: { name: '끼고미', icon: '🐻', image: 'assets/pets/mossbear.png', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
-  acornsquirrel: { name: '도토람', icon: '🐿️', image: 'assets/pets/acornsquirrel.png', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
-  pineowl: { name: '솔붱이', icon: '🦉', image: 'assets/pets/pineowl.png', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
-  glowhog: { name: '반디치', icon: '🦔', image: 'assets/pets/glowhog.png', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
-  mistdeer: { name: '아슴이', icon: '🦌', image: 'assets/pets/mistdeer.png', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
-  elderturtle: { name: '나북이', icon: '🐢', image: 'assets/pets/elderturtle.png', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' },
+  mossbear: { name: '이꼼', icon: '🐻', image: 'assets/pets/mossbear.png', element: 'grass', color: '#9db08a', rarity: 'common', region: 'forest', description: '등에 이끼가 자라는 느긋한 숲 펫.' },
+  acornsquirrel: { name: '꼬톨이', icon: '🐿️', image: 'assets/pets/acornsquirrel.png', element: 'earth', color: '#c9a47a', rarity: 'common', region: 'forest', description: '도토리를 묻어 두고 어디 묻었는지 잊어버린다.' },
+  pineowl: { name: '솔부', icon: '🦉', image: 'assets/pets/pineowl.png', element: 'wind', color: '#b9a48c', rarity: 'rare', region: 'forest', description: '소리 없이 나뭇가지 사이를 난다.' },
+  glowhog: { name: '빛슴이', icon: '🦔', image: 'assets/pets/glowhog.png', element: 'electric', color: '#d8cf8a', rarity: 'rare', region: 'forest', description: '가시 끝이 밤마다 깜빡인다.' },
+  mistdeer: { name: '안슴', icon: '🦌', image: 'assets/pets/mistdeer.png', element: 'water', color: '#b7cfd6', rarity: 'epic', region: 'forest', breedOnly: true, description: '안개 낀 새벽에만 모습을 보인다.' },
+  elderturtle: { name: '뚜북', icon: '🐢', image: 'assets/pets/elderturtle.png', element: 'earth', color: '#a8b58f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질에 작은 나무가 자란다.' },
 
   // 복합 속성(속성 2개) 종족. BREEDING_RULES.elementPairs에 등록된 부모 속성 조합에서 태어난다.
-  lotusfrog: { name: '연구리', icon: '🐸', image: 'assets/pets/lotusfrog.png', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
-  flarefly: { name: '화르비', icon: '🦋', image: 'assets/pets/flarefly.png', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
-  sandhamster: { name: '모래찌', icon: '🐹', image: 'assets/pets/sandhamster.png', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
+  lotusfrog: { name: '연개롱', icon: '🐸', image: 'assets/pets/lotusfrog.png', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
+  flarefly: { name: '팔랑불', icon: '🦋', image: 'assets/pets/flarefly.png', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
+  sandhamster: { name: '모랑이', icon: '🐹', image: 'assets/pets/sandhamster.png', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
 };
 
 /* 종족의 예전 이름.
@@ -147,12 +147,21 @@ const SPECIES = {
  * 그러면 예전 저장을 불러올 때 그 이름이 지금 이름으로 바뀐다. (이름을 다시 바꿀 때는 직전 이름을 목록에 추가한다.)
  */
 const LEGACY_SPECIES_NAMES = {
-  sproutbun: ['새싹토끼'],
-  pebblelamb: ['몽돌양'],
-  dewotter: ['이슬수달'],
-  breezefox: ['산들여우'],
-  embergecko: ['불씨도마뱀'],
-  sparkchick: ['번개병아리']
+  sproutbun: ['새싹토끼', '싹총이'],
+  pebblelamb: ['몽돌양', '몽양이'],
+  dewotter: ['이슬수달', '슬달이'],
+  breezefox: ['산들여우', '산들우'],
+  embergecko: ['불씨도마뱀', '불또마'],
+  sparkchick: ['번개병아리', '번아리'],
+  mossbear: ['끼고미'],
+  acornsquirrel: ['도토람'],
+  pineowl: ['솔붱이'],
+  glowhog: ['반디치'],
+  mistdeer: ['아슴이'],
+  elderturtle: ['나북이'],
+  lotusfrog: ['연구리'],
+  flarefly: ['화르비'],
+  sandhamster: ['모래찌']
 };
 
 // effect 문구는 아래 코드의 실제 동작과 반드시 일치시킨다.
@@ -242,7 +251,7 @@ function formatTime(seconds) {
   return m > 0 ? `${m}분 ${String(r).padStart(2, '0')}초` : `${r}초`;
 }
 /* 낱말 끝 글자에 받침이 있는지 보고 알맞은 조사를 붙인다.
- * 예: withParticle('몽양이', '이', '가') → '몽양이가', withParticle('제련소', '을', '를') → '제련소를'
+ * 예: withParticle('몽글이', '이', '가') → '몽글이가', withParticle('제련소', '을', '를') → '제련소를'
  * 끝 글자가 한글이 아니면(영어·숫자·기호) 고를 수 없으므로 '이(가)'처럼 둘 다 보여 준다.
  */
 function withParticle(word, consonantForm, vowelForm) {
