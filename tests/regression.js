@@ -746,7 +746,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   for (const tab of ['village', 'pets', 'breed', 'dex']) { await page.click(`[data-tab="${tab}"]`); check(`8 탭 전환: ${tab}`, await page.evaluate((t) => activeTab === t && document.querySelector('.tab.active').dataset.tab === t, tab)); }
 
   // ---------- 9. 새로고침 유지 ----------
-  await page.evaluate(() => { game.pets.forEach(p => { p.energy = p.maxEnergy; }); game.pets[0].workBuildingId = getBuilding('farm').id; activeTab = 'breed'; renderAll(); });
+  // 생산 진행도를 0으로 둔다. 생산 직전 상태면 처음 기록과 새로고침 사이에 1초 타이머가 한 번 돌아 자원이 1 늘어, 저장이 정상이어도 값이 달라질 수 있다(가끔 나던 우연 실패의 원인).
+  await page.evaluate(() => { game.pets.forEach(p => { p.energy = p.maxEnergy; p.productionProgress = 0; }); game.pets[0].workBuildingId = getBuilding('farm').id; activeTab = 'breed'; renderAll(); });
   await page.click('#breedButton');
   await page.waitForTimeout(300);
   const snap = () => page.evaluate(() => ({ pets: game.pets.map(p => [p.id, p.speciesId, p.traits.join(), p.workBuildingId]), res: Object.values(game.resources).map(Math.floor), buildings: game.buildings.map(b => b.type), eggs: game.eggs.map(e => e.id), dex: game.discoveredSpecies, looks: game.discoveredLooks, v: game.version }));
@@ -837,7 +838,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     check(`13 ${name} ${vp.width}×${vp.height}: 캔버스 비율 유지·가로 넘침 없음·자원 숫자 보임`, Math.abs(m.ratio - 1.6) < .02 && m.overflowX <= 0 && m.chips.every(Boolean) && m.canvasInStage, JSON.stringify(m));
     if (vp.width < 800) {
       // 누르는 지점 가까이에 다른 펫이 우연히 있으면 그 펫이 선택돼(가장 가까운 펫 선택 규칙) 결과가 실행마다 달라지므로, 다른 펫은 반대편 구석으로 옮겨 둔다.
-      const tgt = await page.evaluate(() => { const p = game.pets[1]; game.pets.forEach(o => { if (o !== p) { o.x = p.x < .5 ? .85 : .15; o.y = p.y < .5 ? .85 : .15; o.targetX = o.x; o.targetY = o.y; } }); const r = canvas.getBoundingClientRect(); return { id: p.id, x: r.left + p.x * r.width + 12, y: r.top + p.y * r.height + 10 }; });
+      // 누를 펫도 제자리에 세워 둔다. 걷고 있으면 위치를 계산한 뒤 클릭하기 전까지 몇 px 움직여 판정 범위(화면 24px) 밖으로 나갈 수 있다.
+      const tgt = await page.evaluate(() => { const p = game.pets[1]; game.pets.forEach(o => { if (o !== p) { o.x = p.x < .5 ? .85 : .15; o.y = p.y < .5 ? .85 : .15; } o.targetX = o.x; o.targetY = o.y; o.moving = false; o.idleTimer = 999; }); const r = canvas.getBoundingClientRect(); return { id: p.id, x: r.left + p.x * r.width + 12, y: r.top + p.y * r.height + 10 }; });
       await page.mouse.click(tgt.x, tgt.y);
       check(`13 ${name}: 축소된 캔버스에서도 펫 누르기 가능`, await page.evaluate((id) => selectedPetId === id, tgt.id));
       await page.click('[data-tab="breed"]'); await page.click('#breedButton');
