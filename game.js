@@ -1245,37 +1245,88 @@ function petSpriteFor(pet) {
 /* 풀밭 배경: 마을 크기의 1/4 캔버스에 점 단위로 칠한 뒤 4배로 키워 픽셀아트처럼 보이게 한다. 길은 없고, 건물은 풀밭 위 원하는 칸에 놓인다.
  * 바뀌지 않는 그림이므로 처음 한 번만 만들어 두고 재사용한다(같은 씨앗값이라 매번 같은 모양).
  */
-const BACKGROUND_SCALE = 4;
+const BACKGROUND_SCALE = 2; // 배경 점 하나 = 화면 2칸(펫·시설 그림과 같은 점 크기)
 let backgroundLayer = null;
 function seededRandom(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 function hexToRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+/* 초원 배경 만들기(그리기 전용, 게임 규칙과 무관). 순서:
+ * 1) 크고 작은 얼룩을 겹친 명암을 초록 7단계로 나누고, 단계 경계는 4×4 체크무늬(디더링)로 섞는다.
+ * 2) 끝이 밝은 작은 풀 포기를 얼룩 모양을 따라 무리 지어 찍는다(주변 색보다 어둡게, 끝은 밝게).
+ * 3) 들꽃 무리(흰·노랑·분홍)와 클로버를 드문드문 놓는다.
+ */
 function buildBackground() {
   const cols = Math.round(canvas.width / BACKGROUND_SCALE), rows = Math.round(canvas.height / BACKGROUND_SCALE);
   const layer = document.createElement('canvas'); layer.width = cols; layer.height = rows;
   const g = layer.getContext('2d');
-  // 풀밭: 왼쪽 위는 밝고 오른쪽 아래는 어둡게, 큰 얼룩과 작은 풀포기를 섞는다.
   const random = seededRandom(20261113);
-  const grass = ['#2a7136', '#2e7a3b', '#32823f', '#368a43', '#3a9147', '#3f984b'].map(hexToRgb);
-  const tuftDark = hexToRgb('#246530'), tuftLight = hexToRgb('#4fa857');
-  const cell = 10, gw = Math.ceil(cols / cell) + 2, gh = Math.ceil(rows / cell) + 2;
-  const coarse = Array.from({ length: gw * gh }, () => random());
-  const noise = (x, y) => {
-    const gx = x / cell, gy = y / cell, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
-    const v = (i, j) => coarse[(y0 + j) * gw + (x0 + i)];
-    return (v(0, 0) * (1 - fx) + v(1, 0) * fx) * (1 - fy) + (v(0, 1) * (1 - fx) + v(1, 1) * fx) * fy;
+  const tones = ['#1b602d', '#206a33', '#257438', '#2b7e3e', '#318843', '#389249', '#409c50', '#4aa758'].map(hexToRgb);
+  const smooth = (t) => t * t * (3 - 2 * t);
+  const makeNoise = (cell) => {
+    const gw = Math.ceil(cols / cell) + 2, gh = Math.ceil(rows / cell) + 2;
+    const grid = Array.from({ length: gw * gh }, () => random());
+    return (x, y) => {
+      const gx = x / cell, gy = y / cell, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = smooth(gx - x0), fy = smooth(gy - y0);
+      const v = (i, j) => grid[(y0 + j) * gw + (x0 + i)];
+      return (v(0, 0) * (1 - fx) + v(1, 0) * fx) * (1 - fy) + (v(0, 1) * (1 - fx) + v(1, 1) * fx) * fy;
+    };
   };
+  const big = makeNoise(70), mid = makeNoise(26), fine = makeNoise(9), tuftNoise = makeNoise(18);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const tone = new Uint8Array(cols * rows);
   const image = g.createImageData(cols, rows);
+  const put = (x, y, color) => { if (x < 0 || y < 0 || x >= cols || y >= rows) return; const i = (y * cols + x) * 4; image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255; };
+  // 1) 명암
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-    const light = 1 - (x / cols + y / rows) / 2;
-    const v = light * .35 + noise(x, y) * .65 + (random() - .5) * .05;
-    let color = grass[Math.max(0, Math.min(grass.length - 1, Math.floor(v * grass.length)))];
-    const r = random();
-    if (r < .008) color = tuftDark; else if (r < .013) color = tuftLight;
-    const i = (y * cols + x) * 4;
-    image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
+    const light = 1 - (x / cols * .55 + y / rows * .45);
+    const edge = Math.min(x, cols - 1 - x, y, rows - 1 - y) / 36;
+    let v = big(x, y) * .48 + mid(x, y) * .3 + fine(x, y) * .07 + light * .22 - (edge < 1 ? (1 - edge) * .12 : 0);
+    v = Math.max(0, Math.min(.999, (v - .08) * 1.3));
+    const t = v * (tones.length - 1), base = Math.floor(t);
+    const idx = Math.min(tones.length - 1, (t - base) * 16 > bayer[(y % 4) * 4 + (x % 4)] ? base + 1 : base);
+    tone[y * cols + x] = idx; put(x, y, tones[idx]);
+  }
+  const shade = (x, y, step) => tones[Math.max(0, Math.min(tones.length - 1, tone[Math.min(rows - 1, Math.max(0, y)) * cols + Math.min(cols - 1, Math.max(0, x))] + step))];
+  // 2) 풀 포기: [dx, dy, 밝기 단계]. 아래는 어둡고 끝은 밝다.
+  const tufts = [
+    [[0, 0, -2], [0, -1, -1], [0, -2, 3], [-1, 0, -2], [-1, -1, 2], [1, 0, -2], [1, -1, 2]],
+    [[0, 0, -2], [0, -1, 2], [2, 0, -2], [2, -1, -1], [2, -2, 3], [1, 0, -2]],
+    [[0, 0, -2], [0, -1, -1], [0, -2, 3], [-1, -1, -1], [-2, -2, 3], [1, -1, -1], [2, -2, 3]],
+    [[0, 0, -2], [0, -1, 2], [1, 0, -2], [-1, 0, -2]]
+  ];
+  for (let n = 0; n < cols * rows / 20; n++) {
+    const x = Math.floor(random() * cols), y = Math.floor(random() * rows);
+    if (random() > tuftNoise(x, y) * 1.25 - .2) continue; // 얼룩을 따라 무리 짓게
+    const shape = tufts[Math.floor(random() * tufts.length)];
+    shape.forEach(([dx, dy, step]) => put(x + dx, y + dy, shade(x + dx, y + dy, step)));
+  }
+  // 3) 클로버와 들꽃 무리
+  const clover = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [2, 1], [1, 2]];
+  for (let n = 0; n < 26; n++) {
+    const cx = Math.floor(random() * cols), cy = Math.floor(random() * rows);
+    clover.forEach(([dx, dy]) => { if (random() < .8) put(cx + dx, cy + dy, shade(cx + dx, cy + dy, random() < .5 ? 1 : 2)); });
+  }
+  const flowerKinds = [
+    { petal: hexToRgb('#f4f7ea'), center: hexToRgb('#f3c13a') },
+    { petal: hexToRgb('#ffd94d'), center: hexToRgb('#e58a2b') },
+    { petal: hexToRgb('#ffa8c8'), center: hexToRgb('#fff1a6') },
+    { petal: hexToRgb('#c9b8ff'), center: hexToRgb('#fff6c2') }
+  ];
+  for (let n = 0; n < 22; n++) {
+    const px = Math.floor(random() * cols), py = Math.floor(random() * rows);
+    const kind = flowerKinds[Math.floor(random() * (random() < .7 ? 2 : flowerKinds.length))];
+    const count = 3 + Math.floor(random() * 7);
+    for (let k = 0; k < count; k++) {
+      const x = px + Math.round((random() - .5) * 18), y = py + Math.round((random() - .5) * 10);
+      if (random() < .55) { // 작은 꽃(가운데 + 꽃잎 4장)
+        put(x, y + 2, shade(x, y + 2, -2)); put(x, y, kind.center);
+        put(x - 1, y, kind.petal); put(x + 1, y, kind.petal); put(x, y - 1, kind.petal); put(x, y + 1, kind.petal);
+      } else { // 아주 작은 꽃 한 점
+        put(x, y + 1, shade(x, y + 1, -2)); put(x, y, kind.petal);
+      }
+    }
   }
   g.putImageData(image, 0, 0);
   return { canvas: layer, cols, rows };

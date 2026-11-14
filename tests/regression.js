@@ -529,15 +529,21 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-7 펫·시설·장식·알을 모두 그림 크기의 2배로 그림(점 크기 통일)', drawn.doubled, JSON.stringify(drawn));
   const scene = await page.evaluate(() => {
     const out = {};
-    // 배경: 1/4 크기 그림을 4배로 키워 그린다. 같은 그림을 재사용하고, 다시 만들어도 같은 모양이다.
+    // 배경: 1/2 크기 그림을 2배로 키워 그린다. 같은 그림을 재사용하고, 다시 만들어도 같은 모양이다.
     const first = backgroundLayer; drawVillage(); out.reused = backgroundLayer === first;
     out.size = [first.cols, first.rows, first.canvas.width, first.canvas.height];
     const again = buildBackground();
     const pixels = (layer) => layer.canvas.getContext('2d').getImageData(0, 0, layer.cols, layer.rows).data;
     const a = pixels(first), b = pixels(again); out.sameShape = a.length === b.length && a.every((v, i) => v === b[i]);
-    // 흙길이 없다: 모든 점이 풀밭 초록(초록이 빨강·파랑보다 진함)이고 길 정보도 없다.
-    let notGreen = 0; for (let i = 0; i < a.length; i += 4) if (!(a[i + 1] > a[i] && a[i + 1] > a[i + 2])) notGreen++;
-    out.notGreen = notGreen; out.noPath = !('path' in first) && typeof isOnPathPixel === 'undefined';
+    // 흙길이 없다: 흙길 색(갈색 계열) 점이 하나도 없고, 들꽃을 빼면 풀밭 초록(초록이 가장 진한 점 97% 이상)이며 길 정보도 없다.
+    let dirt = 0, green = 0, total = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      total++;
+      const r = a[i], g = a[i + 1], bl = a[i + 2];
+      if (r > g && g > bl && r < 200 && r - bl > 40) dirt++;
+      if (g > r && g > bl) green++;
+    }
+    out.dirt = dirt; out.greenRatio = green / total; out.noPath = !('path' in first) && typeof isOnPathPixel === 'undefined';
     // 장식은 지어진 시설(그림 범위)과 겹치지 않는다.
     const w = canvas.width, h = canvas.height; const decor = decorPlacements();
     out.decorOnBuilding = decor.filter(d => game.buildings.some(b => Math.abs(b.x * w - d.x) < 60 && d.y > b.y * h - 60 && d.y - d.size < b.y * h + 40)).length;
@@ -547,8 +553,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     game.buildings.push(fake); out.clearedForBuilding = !decorPlacements().some(d => d.x === spot.x && d.y === spot.y); game.buildings.pop();
     return out;
   });
-  check('6-6 배경: 1/4 크기(240×150) 픽셀 그림을 재사용, 다시 만들어도 같은 모양', scene.reused && scene.size.join() === '240,150,240,150' && scene.sameShape, JSON.stringify(scene));
-  check('5-4 흙길 없음: 배경은 풀밭 초록뿐', scene.noPath && scene.notGreen === 0, JSON.stringify({ noPath: scene.noPath, notGreen: scene.notGreen }));
+  check('6-6 배경: 1/2 크기(480×300) 픽셀 그림을 재사용, 다시 만들어도 같은 모양', scene.reused && scene.size.join() === '480,300,480,300' && scene.sameShape, JSON.stringify(scene));
+  check('5-4 흙길 없음: 흙길 색 점 0개, 초록이 가장 진한 점 97% 이상', scene.noPath && scene.dirt === 0 && scene.greenRatio >= 0.97, JSON.stringify({ noPath: scene.noPath, dirt: scene.dirt, greenRatio: scene.greenRatio }));
   check('6-6 장식은 시설과 겹치지 않고, 시설을 지으면 그 자리 장식이 사라짐', scene.decorOnBuilding === 0 && scene.clearedForBuilding, JSON.stringify(scene));
   const motion = await page.evaluate(() => {
     const pet = game.pets[0]; const saved = { moving: pet.moving, bob: pet.bob, energy: pet.energy, work: pet.workBuildingId, resting: pet.resting };
