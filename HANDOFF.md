@@ -14,17 +14,16 @@
 | 게임 | PC 브라우저용 펫 수집·교배·육성 시뮬레이션. `index.html`을 열면 바로 실행된다(서버·설치 불필요) |
 | 개발 단계 | 개발 길라잡이 10단계 중 **9단계 완료, 10단계 중 그림 교체 완료**. 그 뒤 사용자 요청으로 그림체 통일(슬달이 방식), 펫·시설 크기 조정, **격자 자유 배치·옮기기**까지 했다. 남은 것은 밸런스 조정과 종족 이름 확정 |
 | 자동 검사 | `node tests/regression.js` → **총 180개 중 통과 180, 실패 0** (2026-11-14 기준) |
-| 최신 코드 위치 | GitHub `ojuos4545-ship-it/game` 저장소의 **`claude/fervent-sagan-ghojpc` 브랜치**. 이번 작업 전체가 아직 `main`에 합쳐지지 않았다(차이는 `git log --oneline origin/main..origin/claude/fervent-sagan-ghojpc`로 확인) |
+| 최신 코드 위치 | GitHub `ojuos4545-ship-it/game` 저장소의 **`main`**. 클라우드 작업 브랜치(`claude/fervent-sagan-ghojpc`)의 작업을 2026-11-14에 모두 합쳤다 |
 | 버전 표기 | 화면 하단 `EARLY PLAYABLE BUILD · v0.3` |
 | 저장 데이터 | 브라우저 `localStorage`의 `little-haven-save-v1` 키, 구조 버전 1. v0.1 저장부터 그대로 이어서 불러온다 |
 
 ### 남은 일 (우선순위 순)
 
-1. **`main`에 합치기**: 사용자 허락이 필요하다. 최신 작업은 위 브랜치에만 있다.
-2. **새 초원 배경 적용 여부**: 시험판을 보여 줬고 답을 기다리는 중이다. 코드는 `proposals/meadow-background.patch`에 보관했고, 적용 방법과 고쳐야 할 검사 2개는 `proposals/README.md`에 있다. 사용자가 "적용해줘"라고 하기 전에는 적용하지 않는다.
-3. **밸런스 조정**: 사용자가 며칠 직접 플레이한 느낌이 필요하다. 받으면 `game.js` 상단 `CONFIG` 값만 바꾸는 조정안을 **표로 먼저 보여 주고** 승인 후 바꾼다.
-4. **종족 이름 확정**: 15종 이름이 모두 임시다. 바꾸는 방법은 7장에 있다.
-5. (선택) 기획서에는 있지만 아직 안 한 것: 11장 "하지 않은 것" 참고. 사용자가 요청할 때만 한다.
+1. **새 초원 배경 적용 여부**: 시험판을 보여 줬고 답을 기다리는 중이다. 코드는 `proposals/meadow-background.patch`에 보관했고, 적용 방법과 고쳐야 할 검사 2개는 `proposals/README.md`에 있다. 사용자가 "적용해줘"라고 하기 전에는 적용하지 않는다.
+2. **밸런스 조정**: 사용자가 며칠 직접 플레이한 느낌이 필요하다. 받으면 `game.js` 상단 `CONFIG` 값만 바꾸는 조정안을 **표로 먼저 보여 주고** 승인 후 바꾼다.
+3. **종족 이름 확정**: 15종 이름이 모두 임시다. 바꾸는 방법은 7장에 있다.
+4. (선택) 기획서에는 있지만 아직 안 한 것: 11장 "하지 않은 것" 참고. 사용자가 요청할 때만 한다.
 
 ---
 
@@ -95,7 +94,7 @@
 | `76500ae` | 복합 속성 추가: 속성 2개 종족 3종 |
 | `1018f6a` | 그림 교체 준비, 마을 4단계 기준 조정, 문서 갱신 |
 
-`claude/fervent-sagan-ghojpc` 브랜치에만 있는 것(아직 `main`에 없음):
+클라우드 작업 브랜치(`claude/fervent-sagan-ghojpc`)에서 작업해 2026-11-14에 `main`에 합친 것:
 
 | 커밋 | 내용 |
 |---|---|
@@ -106,7 +105,13 @@
 | `83badb0` | 시설 6종 픽셀아트 그림 적용 |
 | `825b16e` | 그림 교체 마무리: 픽셀 배경, 장식·알·자원 그림, 펫 동작, 희귀 외형 무늬 |
 | `3d1494b` | 그림 제작 기록의 크레딧 사용량 수정 |
-| (이 문서) | 인계 문서 `HANDOFF.md`, `AGENTS.md`, 한 파일 묶음 도구 추가 |
+| `d090ae6` | 인계 문서 `HANDOFF.md`, `AGENTS.md`, 한 파일 묶음 도구 추가 |
+| `17da006` | 그래픽을 슬달이 방식으로 통일: 진한 외곽선·쨍한 색·2배 크기·짙은 배경 |
+| `3b357a0` | 펫 크기를 B(그림 28칸, 화면 56)로 조정 |
+| `8d6e8ef` | 격자 자유 배치와 건물 옮기기 추가, 흙길 제거 |
+| `5659069` | 시설 크기를 B(그림 50×42, 화면 100×84)로 조정 |
+| `60dc144` | PC의 Claude Code에서 이어 가기 위한 정리(적용 대기 제안 `proposals/` 포함) |
+| (이 커밋) | `main`에 합친 뒤 인계 문서 갱신 |
 
 ### 4-3. 이번 작업 기간에 한 일 자세히
 
@@ -480,7 +485,7 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 ### 방법 A — Codex처럼 저장소를 직접 다루는 GPT
 
-1. GitHub 저장소 `ojuos4545-ship-it/game`을 연결하고 **`claude/fervent-sagan-ghojpc` 브랜치**에서 시작한다(또는 사용자가 먼저 `main`에 합친다).
+1. GitHub 저장소 `ojuos4545-ship-it/game`을 연결하고 **`main`**에서 시작한다.
 2. Codex는 저장소 맨 위의 `AGENTS.md`를 자동으로 읽는다. 이 문서(`HANDOFF.md`)도 처음에 읽게 한다.
 3. 시작하자마자 `node tests/regression.js`를 돌려 "실패 0"을 확인한 뒤 작업한다.
 
@@ -493,7 +498,7 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 ### 첫 작업으로 추천하는 것
 
-- 사용자가 아직 정하지 않았다면: "`main`에 합칠지"를 먼저 묻는다.
+- 적용 대기 중인 새 초원 배경(`proposals/`)을 적용할지 먼저 묻는다.
 - 그다음은 사용자가 고르게 한다.
   - 밸런스 조정(플레이 소감 필요)
   - 종족 이름 확정(이름 목록 필요)
@@ -503,28 +508,10 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 ## 14. 사용자 PC의 Claude Code(Windows PowerShell)에서 이어 가기
 
-처음 한 번만 준비하면, 그다음부터는 4·5단계만 하면 된다.
+사용자는 이미 PC에 이 저장소를 받아 두고 Claude Code로 작업하고 있다(설치 안내는 필요 없다). PC에서 이어 갈 때의 순서:
 
-1. **프로그램 설치**(이미 있으면 건너뜀)
-   - Git for Windows: https://git-scm.com/downloads/win (Claude Code가 명령을 실행할 때 쓴다)
-   - Node.js 22 이상: https://nodejs.org (자동 검사 실행에 필요하다)
-   - Claude Code: PowerShell에서 `irm https://claude.ai/install.ps1 | iex` 실행 후, 새 PowerShell 창에서 `claude --version`으로 확인한다. Claude Code는 Pro 이상 요금제나 Console 계정으로 로그인해야 쓸 수 있다.
-2. **저장소 받기**: 원하는 폴더에서 다음을 실행한다. 비공개 저장소라 처음에 GitHub 로그인 창이 뜰 수 있다.
-   - `git clone https://github.com/ojuos4545-ship-it/game.git little-haven`
-   - `cd little-haven`
-   - `git checkout claude/fervent-sagan-ghojpc` (`main`에 합친 뒤에는 이 줄 대신 `main`을 쓴다)
-3. **자동 검사 준비**
-   - `npm install`
-   - `npx playwright install chromium`
-   - `node tests/regression.js` → 마지막 줄이 "실패 0"이면 준비 끝
-   - PowerShell이 "이 시스템에서 스크립트를 실행할 수 없으므로…"라며 `npm`·`npx`를 막으면 `npm.cmd install`, `npx.cmd playwright install chromium`처럼 `.cmd`를 붙여 실행한다.
-4. **Claude Code 시작**: 저장소 폴더에서 `claude`를 실행한다. 첫 실행 때 브라우저가 열리며 로그인한다. `CLAUDE.md`는 자동으로 읽힌다.
-5. **첫 메시지**: 아래 문장을 붙여 넣는다.
-
-```text
-HANDOFF.md를 끝까지 읽고 지금 상태를 결론 + 핵심 3줄로 알려줘. 그다음 node tests/regression.js를 실행해서 결과를 알려줘.
-```
-
-- 게임 확인은 저장소 폴더의 `index.html`을 Chrome으로 여는 것이 가장 정확하다. 파일 하나로 주고받아야 하면 `python tools/build_single_html.py`를 쓴다(Python 필요).
-- PC에서 작업한 내용은 Claude Code에게 "커밋하고 푸시해줘"라고 해야 GitHub에 올라간다. 다른 컴퓨터나 클라우드에서 이어 할 때는 먼저 `git pull`로 최신 내용을 받는다.
-
+1. **로컬 변경 확인**: 저장소 폴더에서 `git status`로 커밋하지 않은 변경이 있는지 본다. 있으면 덮어쓰지 말고 사용자에게 먼저 알린다(커밋할지, 따로 보관할지).
+2. **최신 내용 받기**: `git checkout main` 후 `git pull`로 GitHub `main`의 최신 내용을 받는다. 충돌이 나면 사용자에게 어떤 파일이 왜 충돌했는지 쉬운 말로 설명하고 어느 쪽을 남길지 묻는다.
+3. **검사**: `node tests/regression.js` → "실패 0" 확인(지금 180개). 검사 도구가 없다는 오류가 나면 `npm install`과 `npx playwright install chromium`을 먼저 한다. PowerShell이 `npm`·`npx` 실행을 막으면 `npm.cmd`, `npx.cmd`로 실행한다.
+4. **확인**: 게임은 저장소 폴더의 `index.html`을 Chrome으로 열어 본다. 파일 하나로 주고받아야 하면 `python tools/build_single_html.py`를 쓴다.
+5. **올리기**: PC에서 작업한 내용은 사용자가 "커밋하고 푸시해줘"라고 하면 올린다. 다른 컴퓨터나 클라우드에서 이어 할 때는 먼저 `git pull`로 최신 내용을 받는다.
