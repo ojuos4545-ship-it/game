@@ -4,6 +4,8 @@
 set -e
 cd "$(dirname "$0")/.."
 REMOTE="$(git remote get-url origin)"
+HAS_WIN=0
+[ -f build/windows/LittleHaven-windows.zip ] && HAS_WIN=1
 TMP="$(mktemp -d)"
 cp -r build/web/. "$TMP/"
 # Windows 실행 파일 압축본이 있으면 같이 올린다 (다운로드 주소: .../game/LittleHaven-windows.zip)
@@ -15,4 +17,4 @@ git -c user.name="Little Haven Dev" -c user.email="noreply@anthropic.com" commit
 git push -f "$REMOTE" gh-pages
 rm -rf "$TMP"
 echo "올림 완료: https://ojuos4545-ship-it.github.io/game/"
-[ -f "build/windows/LittleHaven-windows.zip" ] && echo "Windows 다운로드: https://ojuos4545-ship-it.github.io/game/LittleHaven-windows.zip" || true
+[ "$HAS_WIN" = 1 ] && echo "Windows 다운로드: https://ojuos4545-ship-it.github.io/game/LittleHaven-windows.zip" || true
