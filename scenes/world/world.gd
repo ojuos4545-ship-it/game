@@ -18,6 +18,8 @@ const SCREEN_BACK := Vector3(-0.7071, 0, -0.7071)
 
 
 func _ready() -> void:
+	# 3D 물체(작업장) 마우스 클릭을 받으려면 켜야 한다
+	get_viewport().physics_object_picking = true
 	_build_ground()
 	_build_paths()
 	_build_decor()

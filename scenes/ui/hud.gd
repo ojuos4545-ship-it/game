@@ -6,15 +6,18 @@ extends Control
 const PetsView := preload("res://scenes/ui/pets_view.gd")
 const DexView := preload("res://scenes/ui/dex_view.gd")
 const CombineView := preload("res://scenes/ui/combine_view.gd")
+const WorkshopView := preload("res://scenes/ui/workshop_view.gd")
 
 ## 자원 id -> 수량 표시 Label
 var _amount_labels: Dictionary = {}
 var _toast_tween: Tween
+var _workshop_view: Node
 ## 창 이름 -> 창
 @onready var windows: Dictionary = {
 	"pets": %PetsWindow,
 	"combine": %CombineWindow,
 	"dex": %DexWindow,
+	"workshop": %WorkshopWindow,
 }
 @onready var _buttons: Dictionary = {
 	"pets": %PetsButton,
@@ -32,8 +35,11 @@ func _ready() -> void:
 	GameState.pet_discovered.connect(_on_pet_discovered)
 	%Toast.visible = false
 	GameState.resource_changed.connect(_on_resource_changed)
+	_workshop_view = WorkshopView.new()
+	windows.workshop.set_view(_workshop_view)
 	for key in windows:
-		_buttons[key].pressed.connect(toggle_window.bind(key))
+		if _buttons.has(key):
+			_buttons[key].pressed.connect(toggle_window.bind(key))
 		windows[key].close_requested.connect(close_all_windows)
 	%Dim.gui_input.connect(_on_dim_input)
 	close_all_windows()
@@ -52,6 +58,15 @@ func toggle_window(key: String) -> void:
 	if not was_open:
 		windows[key].visible = true
 		%Dim.visible = true
+
+
+## 작업장 창 열기 (작업장 부지를 클릭하면 불림)
+func open_workshop(workshop_id: String) -> void:
+	close_all_windows()
+	_workshop_view.show_workshop(workshop_id)
+	windows.workshop.title = DataDB.get_workshop(workshop_id).name
+	windows.workshop.visible = true
+	%Dim.visible = true
 
 
 func close_all_windows() -> void:

@@ -9,6 +9,10 @@ var _failed := 0
 
 func _ready() -> void:
 	print("========== Little Haven 자동 점검 ==========")
+	await _run_all()
+
+
+func _run_all() -> void:
 	_test_stage1_project()
 	_test_stage2_data()
 	_test_stage2_screen()
@@ -19,6 +23,11 @@ func _ready() -> void:
 	_test_stage4_recipes()
 	_test_stage4_combine()
 	_test_stage4_screen()
+	_test_stage5_rules()
+	_test_stage5_upgrade()
+	_test_stage5_screen()
+	await _test_stage5_world()
+	_test_full_cycle()
 	print("--------------------------------------------")
 	print("결과: 통과 %d / 실패 %d" % [_passed, _failed])
 	get_tree().quit(0 if _failed == 0 else 1)
@@ -88,7 +97,7 @@ func _test_stage2_screen() -> void:
 		for plot in plots.get_children():
 			var label: Label3D = plot.get_node_or_null("NameLabel")
 			names.append(label.text if label else "?")
-	check(names == ["벌목장", "광산", "농장"], "작업장 부지 3곳 + 이름표 %s" % [names])
+	check(names == ["벌목장 Lv1", "광산 Lv1", "농장 Lv1"], "작업장 부지 3곳 + 이름표 %s" % [names])
 
 	var hud: Node = main.find_child("HUD", true, false)
 	check(hud != null, "화면 UI 존재")
@@ -302,3 +311,202 @@ func _texts(node: Node) -> Array:
 	for n in node.find_children("*", "Label", true, false):
 		out.append(n.text)
 	return out
+
+
+# ---------- 5단계: 작업장 ----------
+func _uid_of(species: String) -> int:
+	for p in GameState.pets:
+		if p.species == species:
+			return p.uid
+	return -1
+
+
+func _test_stage5_rules() -> void:
+	print("[5단계] 배치 · 생산 · 수집")
+	GameState.new_game()
+	check(DataDB.get_workshop_level("lumber", 1).slots == 2 and DataDB.max_workshop_level("lumber") == 3, "작업장 레벨 데이터 (Lv1 자리 2, 최고 Lv3)")
+	check(WorkshopSystem.likes("doto", "lumber") and not WorkshopSystem.likes("doto", "mine"), "도토(숲)는 벌목장을 좋아함")
+	check(WorkshopSystem.likes("pongdang", "farm") and WorkshopSystem.likes("haerong", "farm"), "농장은 물·햇살 둘 다 좋아함")
+	check(WorkshopSystem.output("doto", "lumber") == 2.0 and WorkshopSystem.output("doto", "mine") == 1.0, "생산량: 좋아하면 2, 아니면 1")
+	check(WorkshopSystem.output("ikkigom", "farm") == 2.4, "생산량: 작업력 1.2 × 2 = 2.4")
+
+	var doto := _uid_of("doto")
+	var r := WorkshopSystem.assign(doto, "lumber")
+	check(r.ok and GameState.get_pet(doto).workshop == "lumber" and GameState.get_pet(doto).slot == 0, "배치: " + r.message)
+	r = WorkshopSystem.assign(doto, "lumber")
+	check(not r.ok, "같은 작업장에 중복 배치 불가")
+	WorkshopSystem.assign(_uid_of("mongdol"), "lumber")
+	r = WorkshopSystem.assign(_uid_of("pongdang"), "lumber")
+	check(not r.ok and WorkshopSystem.workers("lumber").size() == 2, "Lv1 자리 2개 다 차면 배치 불가")
+
+	var made := WorkshopSystem.tick("lumber")
+	check(made == 3.0 and WorkshopSystem.stored("lumber") == 3.0, "한 번 생산: 도토 2 + 몽돌 1 = 3")
+	check(GameState.get_resource("wood") == 0, "생산된 자원은 창고에 쌓이고 아직 내 자원 아님")
+	for i in 20:
+		WorkshopSystem.tick("lumber")
+	check(WorkshopSystem.stored("lumber") == 30.0 and WorkshopSystem.is_full("lumber"), "창고 한도(30)에서 멈춤")
+	var got := WorkshopSystem.collect("lumber")
+	check(got == 30 and GameState.get_resource("wood") == 30 and WorkshopSystem.stored("lumber") == 0.0, "수집: 목재 30 → 내 자원")
+	check(WorkshopSystem.collect("lumber") == 0, "빈 창고 수집 = 0")
+
+	r = WorkshopSystem.assign(doto, "mine")
+	check(r.ok and GameState.get_pet(doto).workshop == "mine" and WorkshopSystem.workers("lumber").size() == 1, "다른 작업장으로 옮기기")
+	r = WorkshopSystem.unassign(doto)
+	check(r.ok and GameState.get_pet(doto).workshop == "" and GameState.get_pet(doto).slot == -1, "쉬게 하기: " + r.message)
+	check(WorkshopSystem.tick("mine") == 0.0, "일하는 펫이 없으면 생산 없음")
+
+	# 소수 생산량: 이끼곰 2.4씩
+	GameState.new_game()
+	var bear := GameState.add_pet("ikkigom", true)
+	WorkshopSystem.assign(bear, "farm")
+	WorkshopSystem.tick("farm")
+	WorkshopSystem.tick("farm")
+	check(is_equal_approx(WorkshopSystem.stored("farm"), 4.8), "소수 생산 누적 (2.4 + 2.4 = 4.8)")
+	check(WorkshopSystem.collect("farm") == 4 and is_equal_approx(WorkshopSystem.stored("farm"), 0.8), "수집은 정수만, 남은 0.8은 창고에")
+	GameState.new_game()
+
+
+func _test_stage5_upgrade() -> void:
+	print("[5단계] 업그레이드")
+	GameState.new_game()
+	check(not WorkshopSystem.check_upgrade("lumber").is_empty(), "자원 부족 시 업그레이드 불가")
+	GameState.add_resource("ore", 20)
+	GameState.add_resource("berry", 20)
+	var r := WorkshopSystem.upgrade("lumber")
+	check(r.ok and WorkshopSystem.level("lumber") == 2, "업그레이드 Lv2: " + r.message)
+	check(GameState.get_resource("ore") == 0 and GameState.get_resource("berry") == 0, "업그레이드 비용 차감")
+	check(WorkshopSystem.slot_count("lumber") == 3 and WorkshopSystem.capacity("lumber") == 60, "Lv2: 자리 3, 창고 60")
+	check(WorkshopSystem.output("doto", "lumber") == 3.0, "Lv2: 생산 ×1.5 (도토 2 → 3)")
+	GameState.add_resource("wood", 100)
+	GameState.add_resource("ore", 100)
+	GameState.add_resource("berry", 100)
+	WorkshopSystem.upgrade("lumber")
+	check(WorkshopSystem.level("lumber") == 3 and WorkshopSystem.slot_count("lumber") == 4, "Lv3: 자리 4")
+	r = WorkshopSystem.upgrade("lumber")
+	check(not r.ok and WorkshopSystem.level("lumber") == 3, "최고 레벨 이후 업그레이드 불가")
+	GameState.new_game()
+	check(WorkshopSystem.level("lumber") == 1, "새 게임: 작업장 Lv1로 초기화")
+
+
+func _test_stage5_screen() -> void:
+	print("[5단계] 작업장 창")
+	GameState.new_game()
+	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
+	add_child(main)
+	var hud: Node = main.find_child("HUD", true, false)
+	hud.open_workshop("lumber")
+	check(hud.windows.workshop.visible and hud.windows.workshop.title == "벌목장", "작업장 창 열림 (벌목장)")
+	var view: Node = hud.find_child("WorkshopView", true, false)
+	check(view._picker.get_child_count() == 4, "쉬는 펫 4마리 표시")
+	check(view._picker.get_child(0).name == "Assign_%d" % _uid_of("doto"), "좋아하는 펫(도토)이 맨 앞")
+	view.find_child("Assign_%d" % _uid_of("doto"), true, false).pressed.emit()
+	check(GameState.get_pet(_uid_of("doto")).workshop == "lumber", "쉬는 펫 누르면 작업 배치")
+	check(hud.get_toast_text() == "도토가 벌목장에서 일을 시작했어요", "배치 알림: " + hud.get_toast_text())
+	var collect: Button = view.find_child("CollectButton", true, false)
+	check(collect.disabled, "창고 비면 수집 버튼 비활성")
+	WorkshopSystem.tick("lumber")
+	check(not collect.disabled and collect.text == "수집하기 (+2)", "생산 후 수집 버튼: " + collect.text)
+	collect.pressed.emit()
+	check(GameState.get_resource("wood") == 2 and hud.get_amount_text("wood") == "2", "수집 → 자원바 2")
+	view.find_child("Remove_%d" % _uid_of("doto"), true, false).pressed.emit()
+	check(GameState.get_pet(_uid_of("doto")).workshop == "", "쉬게 하기 버튼")
+	var up: Button = view.find_child("UpgradeButton", true, false)
+	check(up.disabled, "자원 부족 시 업그레이드 버튼 비활성")
+	GameState.add_resource("ore", 20)
+	GameState.add_resource("berry", 20)
+	check(not up.disabled, "자원 충분하면 업그레이드 버튼 활성")
+	up.pressed.emit()
+	check(WorkshopSystem.level("lumber") == 2 and view._slots_row.get_child(2).modulate.a == 1.0, "업그레이드 → 세 번째 자리 열림")
+	main.queue_free()
+	GameState.new_game()
+
+
+func _test_stage5_world() -> void:
+	print("[5단계] 일하는 모습 (3D)")
+	GameState.new_game()
+	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
+	add_child(main)
+	var plot: Node = main.find_child("Lumber", true, false)
+	check(plot.targets.size() == 2 and plot.worker_visuals.is_empty(), "빈 벌목장: 나무 2그루, 일꾼 없음")
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	check(plot.worker_visuals.size() == 1, "배치하면 작업장에 펫이 나타남")
+	var v: PetVisual = plot.worker_visuals.values()[0]
+	check(v.is_working() and v.model.find_child("ToolPivot", true, false) != null, "도끼를 들고 일하는 동작 재생")
+	var farm: Node = main.find_child("Farm", true, false)
+	WorkshopSystem.assign(_uid_of("pongdang"), "farm")
+	var fv: PetVisual = farm.worker_visuals.values()[0]
+	check(fv.is_working() and fv.model.find_child("ToolPivot", true, false) == null, "농장: 도구 없이 수확 동작")
+	var mine: Node = main.find_child("Mine", true, false)
+	WorkshopSystem.assign(_uid_of("mongdol"), "mine")
+	check(mine.worker_visuals.size() == 1, "광산: 펫 배치됨")
+
+	var hits := [0]
+	v.work_hit.connect(func(): hits[0] += 1)
+	for i in 120:
+		await get_tree().process_frame
+		if hits[0] > 0:
+			break
+	check(hits[0] > 0, "도끼가 나무에 닿는 순간 신호 발생")
+
+	WorkshopSystem.tick("lumber")
+	check(plot._stations.find_child("FloatText", true, false) != null, "생산 시 \"+N\" 글자 표시")
+	check(plot.get_status_text() == "목재 2/30", "작업장 위 창고 표시: " + plot.get_status_text())
+	for i in 20:
+		WorkshopSystem.tick("lumber")
+	check(plot.get_status_text().contains("가득"), "창고 가득 표시: " + plot.get_status_text())
+
+	GameState.add_resource("ore", 20)
+	GameState.add_resource("berry", 20)
+	WorkshopSystem.upgrade("lumber")
+	check(plot.targets.size() == 3, "업그레이드 → 나무(작업 자리) 3그루")
+
+	var clock: Node = main.find_child("ProductionClock", true, false)
+	check(clock != null and clock.is_in_group("production_clock"), "생산 시계 존재")
+	WorkshopSystem.collect("mine")
+	var before := WorkshopSystem.stored("mine")
+	clock._process(5.01)
+	check(WorkshopSystem.stored("mine") > before, "생산 시계: 5초 지나면 자동 생산")
+
+	var hud: Node = main.find_child("HUD", true, false)
+	var area: Area3D = plot.find_child("ClickArea", true, false)
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	area.input_event.emit(null, click, Vector3.ZERO, Vector3.UP, 0)
+	check(hud.windows.workshop.visible, "작업장 클릭 → 작업장 창 열림")
+	main.queue_free()
+	GameState.new_game()
+
+
+# ---------- 전체 플레이 흐름 (작업장 → 자원 → 조합 → 도감 완성) ----------
+func _test_full_cycle() -> void:
+	print("[전체 흐름] 새 게임부터 도감 8종까지 (자원은 생산으로만)")
+	GameState.new_game()
+	var ticks := [0]
+	var run := func(n: int):
+		for i in n:
+			WorkshopSystem.tick_all()
+			ticks[0] += 1
+			for ws in DataDB.workshop_ids:
+				if WorkshopSystem.is_full(ws):
+					WorkshopSystem.collect(ws)
+		for ws in DataDB.workshop_ids:
+			WorkshopSystem.collect(ws)
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	WorkshopSystem.assign(_uid_of("mongdol"), "mine")
+	WorkshopSystem.assign(_uid_of("pongdang"), "farm")
+	WorkshopSystem.assign(_uid_of("haerong"), "farm")
+	var goals := [["doto", "pongdang"], ["mongdol", "haerong"], ["doto", "mongdol"], ["ikkigom", "bandi"]]
+	var ok := true
+	for g in goals:
+		var guard := 0
+		while not CombineSystem.check(g[0], g[1]).ok and guard < 500:
+			run.call(1)
+			guard += 1
+		var r := CombineSystem.combine(g[0], g[1])
+		if not r.ok:
+			ok = false
+			print("    조합 실패: ", g, " ", r.message)
+	var minutes: float = ticks[0] * DataDB.balance.production_interval / 60.0
+	check(ok and GameState.discovered.size() == 8, "도감 8종 완성 (생산 %d회, 약 %.1f분)" % [ticks[0], minutes])
+	GameState.new_game()

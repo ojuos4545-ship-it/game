@@ -2,7 +2,15 @@
 
 펫을 모으고 조합해 새 펫을 발견하고, 펫들이 작업장에서 일하며 자원을 만드는 3D 쿼터뷰 경영 시뮬레이션 (미니판).
 
-## 실행 방법 (처음 한 번)
+## 바로 해보기 (설치 없이 브라우저에서)
+
+👉 **https://ojuos4545-ship-it.github.io/game/**
+
+- 처음 한 번은 GitHub에서 웹 게시를 켜야 합니다: 저장소 **Settings → Pages → Branch: `gh-pages` / `/ (root)` → Save**. 1~2분 뒤 주소가 열립니다.
+- 첫 로딩에 10~20초 걸릴 수 있습니다 (게임 엔진 약 40MB).
+- 크롬·엣지 최신 버전 권장.
+
+## 실행 방법 (Godot로 직접 열기)
 
 1. **Godot 4.7.2 (Standard 버전)** 설치 — https://godotengine.org/download
    - ".NET" 버전이 아닌 **일반(Standard)** 버전을 받습니다.
@@ -59,6 +67,10 @@ tools/run_tests.sh
 
 ```bash
 tools/screenshot.sh build/screen.png
+```
+
+```bash
+tools/export_web.sh && tools/deploy_web.sh
 ```
 
 ## 라이선스 / 에셋 출처

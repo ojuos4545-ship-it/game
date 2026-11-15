@@ -4,7 +4,13 @@ extends Node3D
 ## 나중에 실제 3D 모델로 바꿀 때는 이 파일의 _build_* 부분만 모델 불러오기로 교체하면 된다.
 ## 펫은 +Z 방향(앞)을 바라보도록 만든다. 키는 약 1.2 정도.
 
+## 도구가 대상(나무·바위·덤불)에 닿는 순간 (작업장이 대상 흔들기·부스러기 효과에 사용)
+signal work_hit
+
 const EYE := Color("2b2118")
+const HANDLE := Color("8a5a3b")
+const METAL := Color("b8c0c8")
+const BERRY := Color("e0566b")
 const WHITE := Color("ffffff")
 const CHEEK := Color("ff9eb5")
 
@@ -13,6 +19,11 @@ var species_id := ""
 var model: Node3D
 
 var _idle_tween: Tween
+var _work_tween: Tween
+## 도구를 쥐는 어깨 위치 (도구는 이 점을 중심으로 휘두른다)
+var _tool_pivot: Node3D
+## 수확 동작에서 손에 드는 열매
+var _held_berry: Node3D
 
 
 func setup(species: String) -> void:
@@ -53,8 +64,100 @@ func play_idle() -> void:
 func stop_animation() -> void:
 	if _idle_tween:
 		_idle_tween.kill()
+	if _work_tween:
+		_work_tween.kill()
 	if model:
 		model.scale = Vector3.ONE
+		model.rotation = Vector3.ZERO
+		model.position = Vector3.ZERO
+	if _tool_pivot:
+		_tool_pivot.queue_free()
+		_tool_pivot = null
+	if _held_berry:
+		_held_berry.queue_free()
+		_held_berry = null
+
+
+## 노동 동작 반복: "chop"(도끼질) / "mine"(곡괭이질) / "harvest"(수확)
+## phase(0~1)로 시작 시점을 어긋나게 하면 여러 펫이 똑같이 움직이지 않는다.
+func play_work(kind: String, phase := 0.0) -> void:
+	stop_animation()
+	match kind:
+		"chop":
+			_make_tool(false)
+			_start_swing(-45.0, 95.0, 0.45, 0.13)
+		"mine":
+			_make_tool(true)
+			_start_swing(-60.0, 110.0, 0.5, 0.12)
+		"harvest":
+			_start_harvest()
+		_:
+			play_idle()
+			return
+	_work_tween.custom_step(phase * 0.9)
+
+
+func is_working() -> bool:
+	return _work_tween != null and _work_tween.is_valid()
+
+
+# ---------------- 노동 동작 ----------------
+
+## 도끼(false) 또는 곡괭이(true)를 오른손(어깨)에 쥐여 준다. 도구는 위(+Y)로 뻗어 있다.
+func _make_tool(pickaxe: bool) -> void:
+	_tool_pivot = Node3D.new()
+	_tool_pivot.name = "ToolPivot"
+	# 카메라 쪽(왼손)에 들어야 몸에 가려지지 않는다
+	_tool_pivot.position = Vector3(-0.36, 0.62, 0.05)
+	model.add_child(_tool_pivot)
+	_tool_pivot.add_child(Shapes.cylinder(0.035, 0.72, HANDLE, Vector3(0, 0.36, 0)))
+	if pickaxe:
+		var head := Shapes.box(Vector3(0.07, 0.07, 0.46), METAL, Vector3(0, 0.7, 0))
+		_tool_pivot.add_child(head)
+		for z in [-1, 1]:
+			var tip := Shapes.cone(0.04, 0.12, METAL, Vector3(0, 0.7, z * 0.28))
+			tip.rotation_degrees.x = z * 90
+			_tool_pivot.add_child(tip)
+	else:
+		_tool_pivot.add_child(Shapes.box(Vector3(0.05, 0.2, 0.22), METAL, Vector3(0, 0.62, 0.1)))
+		_tool_pivot.add_child(Shapes.box(Vector3(0.06, 0.2, 0.03), Color("e8eef2"), Vector3(0, 0.62, 0.22)))
+	_tool_pivot.rotation_degrees.x = raise_angle_default()
+
+
+func raise_angle_default() -> float:
+	return -45.0
+
+
+## 도구를 뒤로 들었다가(raise) 앞으로 내려친다(strike). 내려치는 순간 work_hit.
+func _start_swing(raise_deg: float, strike_deg: float, raise_time: float, strike_time: float) -> void:
+	_work_tween = create_tween().set_loops()
+	_work_tween.tween_property(_tool_pivot, "rotation_degrees:x", raise_deg, raise_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_work_tween.parallel().tween_property(model, "rotation_degrees:x", -7.0, raise_time)
+	_work_tween.tween_property(_tool_pivot, "rotation_degrees:x", strike_deg, strike_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_work_tween.parallel().tween_property(model, "rotation_degrees:x", 12.0, strike_time)
+	_work_tween.tween_callback(work_hit.emit)
+	_work_tween.tween_interval(0.22)
+
+
+## 몸을 숙여 덤불에서 열매를 따고, 일어나며 열매를 들어 올린 뒤 콩 뛴다.
+func _start_harvest() -> void:
+	_held_berry = Shapes.sphere(0.09, BERRY, Vector3(0, 0.45, 0.42))
+	_held_berry.visible = false
+	model.add_child(_held_berry)
+	_work_tween = create_tween().set_loops()
+	_work_tween.tween_property(model, "rotation_degrees:x", 38.0, 0.4).set_trans(Tween.TRANS_SINE)
+	_work_tween.tween_callback(work_hit.emit)
+	_work_tween.tween_callback(func(): _held_berry.visible = true)
+	_work_tween.tween_interval(0.15)
+	_work_tween.tween_property(model, "rotation_degrees:x", -8.0, 0.35).set_trans(Tween.TRANS_SINE)
+	_work_tween.parallel().tween_property(_held_berry, "position", Vector3(0, 0.95, 0.38), 0.35)
+	_work_tween.tween_property(model, "position:y", 0.14, 0.12).set_ease(Tween.EASE_OUT)
+	_work_tween.tween_property(model, "position:y", 0.0, 0.12).set_ease(Tween.EASE_IN)
+	_work_tween.tween_callback(func():
+		_held_berry.visible = false
+		_held_berry.position = Vector3(0, 0.45, 0.42))
+	_work_tween.tween_property(model, "rotation_degrees:x", 0.0, 0.2)
+	_work_tween.tween_interval(0.15)
 
 
 # ---------------- 공통 부품 ----------------

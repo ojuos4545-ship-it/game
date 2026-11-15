@@ -1,7 +1,31 @@
 {
 	"workshops": [
-		{ "id": "lumber", "name": "벌목장", "resource": "wood", "plot_color": "#7a9a52" },
-		{ "id": "mine", "name": "광산", "resource": "ore", "plot_color": "#a39d90" },
-		{ "id": "farm", "name": "농장", "resource": "berry", "plot_color": "#a8784a" }
+		{
+			"id": "lumber", "name": "벌목장", "resource": "wood", "plot_color": "#7a9a52",
+			"likes": ["forest"], "work": "chop",
+			"levels": [
+				{ "slots": 2, "bonus": 1.0, "capacity": 30 },
+				{ "slots": 3, "bonus": 1.5, "capacity": 60, "upgrade_cost": { "ore": 20, "berry": 20 } },
+				{ "slots": 4, "bonus": 2.0, "capacity": 100, "upgrade_cost": { "wood": 40, "ore": 40, "berry": 40 } }
+			]
+		},
+		{
+			"id": "mine", "name": "광산", "resource": "ore", "plot_color": "#a39d90",
+			"likes": ["stone"], "work": "mine",
+			"levels": [
+				{ "slots": 2, "bonus": 1.0, "capacity": 30 },
+				{ "slots": 3, "bonus": 1.5, "capacity": 60, "upgrade_cost": { "wood": 20, "berry": 20 } },
+				{ "slots": 4, "bonus": 2.0, "capacity": 100, "upgrade_cost": { "wood": 40, "ore": 40, "berry": 40 } }
+			]
+		},
+		{
+			"id": "farm", "name": "농장", "resource": "berry", "plot_color": "#a8784a",
+			"likes": ["water", "sun"], "work": "harvest",
+			"levels": [
+				{ "slots": 2, "bonus": 1.0, "capacity": 30 },
+				{ "slots": 3, "bonus": 1.5, "capacity": 60, "upgrade_cost": { "wood": 20, "ore": 20 } },
+				{ "slots": 4, "bonus": 2.0, "capacity": 100, "upgrade_cost": { "wood": 40, "ore": 40, "berry": 40 } }
+			]
+		}
 	]
 }

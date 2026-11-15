@@ -8,7 +8,7 @@ const DATA_DIR := "res://data/"
 ## 자원: id -> {id, name, color(Color)}
 var resources: Dictionary = {}
 var resource_ids: Array[String] = []
-## 작업장: id -> {id, name, resource, plot_color(Color)}
+## 작업장: id -> {id, name, resource, plot_color(Color), likes(좋아하는 속성), work(노동 동작), levels(레벨별 수치)}
 var workshops: Dictionary = {}
 var workshop_ids: Array[String] = []
 ## 속성: id -> {id, name, color(Color)}
@@ -96,7 +96,7 @@ func cost_text(cost: Dictionary) -> String:
 func _load_all() -> void:
 	errors.clear()
 	_load_list("resources.json", "resources", resources, resource_ids, ["name", "color"])
-	_load_list("workshops.json", "workshops", workshops, workshop_ids, ["name", "resource", "plot_color"])
+	_load_list("workshops.json", "workshops", workshops, workshop_ids, ["name", "resource", "plot_color", "likes", "work", "levels"])
 	_load_list("elements.json", "elements", elements, element_ids, ["name", "color"])
 	_load_list("pets.json", "pets", pets, pet_ids, ["name", "elements", "power", "obtain", "look", "color", "accent", "description"])
 	_load_list("recipes.json", "recipes", recipes, recipe_ids, ["parents", "result", "cost"])
@@ -107,6 +107,7 @@ func _load_all() -> void:
 	for id in elements:
 		elements[id].color = Color.html(elements[id].color)
 	_check_pets()
+	_check_workshop_levels()
 	_check_recipes()
 	_check_balance()
 	for id in workshops:
@@ -114,6 +115,8 @@ func _load_all() -> void:
 		w.plot_color = Color.html(w.plot_color)
 		if not resources.has(w.resource):
 			errors.append("작업장 '%s'의 자원 '%s'이(가) resources.json에 없음" % [id, w.resource])
+		if not (w.get("work") in ["chop", "mine", "harvest"]):
+			errors.append("작업장 '%s'의 work는 chop/mine/harvest 중 하나" % id)
 
 
 func _check_pets() -> void:
@@ -133,6 +136,48 @@ func _check_pets() -> void:
 		# JSON 숫자는 소수로 읽히므로 비용은 정수로 맞춘다
 		if p.has("adopt_cost"):
 			p.adopt_cost = _int_cost(p.adopt_cost)
+
+
+func _check_workshop_levels() -> void:
+	for id in workshops:
+		var w: Dictionary = workshops[id]
+		for e in w.get("likes", []):
+			if not elements.has(e):
+				errors.append("작업장 '%s'의 좋아하는 속성 '%s'이(가) elements.json에 없음" % [id, e])
+		var levels: Variant = w.get("levels")
+		if not (levels is Array and levels.size() >= 1):
+			errors.append("작업장 '%s': levels 목록이 비었음" % id)
+			continue
+		for i in levels.size():
+			var lv: Dictionary = levels[i]
+			for key in ["slots", "bonus", "capacity"]:
+				if not lv.has(key):
+					errors.append("작업장 '%s' Lv%d: '%s' 없음" % [id, i + 1, key])
+			lv.slots = int(lv.get("slots", 1))
+			lv.capacity = int(lv.get("capacity", 0))
+			lv.bonus = float(lv.get("bonus", 1.0))
+			if i > 0:
+				if not lv.has("upgrade_cost"):
+					errors.append("작업장 '%s' Lv%d: upgrade_cost 없음" % [id, i + 1])
+				_check_cost(lv.get("upgrade_cost", {}), "작업장 '%s' Lv%d upgrade_cost" % [id, i + 1])
+				lv.upgrade_cost = _int_cost(lv.get("upgrade_cost", {}))
+
+
+## 작업장의 레벨(1부터) 수치. 범위 밖이면 빈 사전.
+func get_workshop_level(id: String, level: int) -> Dictionary:
+	var levels: Array = get_workshop(id).get("levels", [])
+	if level < 1 or level > levels.size():
+		return {}
+	return levels[level - 1]
+
+
+func max_workshop_level(id: String) -> int:
+	return get_workshop(id).get("levels", []).size()
+
+
+## 작업장에 둘 수 있는 최대 슬롯 수 (최고 레벨 기준)
+func max_workshop_slots(id: String) -> int:
+	return get_workshop_level(id, max_workshop_level(id)).get("slots", 0)
 
 
 func _check_recipes() -> void:
@@ -166,6 +211,9 @@ func _check_balance() -> void:
 		if not pets.has(pet_id):
 			errors.append("balance.json 시작 펫 '%s'이(가) pets.json에 없음" % pet_id)
 	_check_cost(balance.get("start_resources", {}), "balance.json start_resources")
+	for key in ["production_interval", "like_multiplier"]:
+		if not balance.has(key):
+			errors.append("balance.json: '%s' 없음" % key)
 	balance.start_resources = _int_cost(balance.get("start_resources", {}))
 
 

@@ -95,6 +95,13 @@ layout_mode = 1
 title = "펫 도감"
 placeholder = "펫 도감"
 
+[node name="WorkshopWindow" parent="." instance=ExtResource("3_win")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+title = "작업장"
+placeholder = "작업장"
+
 [node name="Toast" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
