@@ -1,6 +1,7 @@
 """스프라이트 시트(여러 펫을 한 장에 그린 그림) 한 장을 펫별 48x48 투명 PNG로 잘라 낸다.
 게임 실행에는 필요 없는 도구다. Python과 Pillow, numpy가 있어야 한다.
-사용: python3 tools/slice_sprites.py <시트.png> <출력폴더> <이름1,이름2,...> [행수] [가로] [세로]
+사용: python3 tools/slice_sprites.py <시트.png> <출력폴더> <이름1,이름2,...> [행수] [가로] [세로] [--keep-dark]
+      --keep-dark: 배경(자홍색)과 색이 비슷한 아주 어두운 몸통(예: 어두운 보라빛 바위)이 지워질 때만 붙인다.
       가로·세로를 생략하면 48x48(펫)이다. 시설은 120 100을 준다.
 예:   python3 tools/slice_sprites.py sheet.png assets/pets sproutbun,pebblelamb,dewotter,breezefox,embergecko,sparkchick 2
       python3 tools/slice_sprites.py sheet.png assets/buildings plaza,nursery,farm,lumber,quarry,smelter 2 120 100
@@ -17,7 +18,7 @@ SIZE = 48
 PAD = 2
 
 
-def remove_background(rgb, hue_tolerance=28):
+def remove_background(rgb, hue_tolerance=28, keep_dark=False):
     """배경색과 색상(hue)이 비슷하고 충분히 진한 픽셀을 가장자리부터 번져 가며 지운다.
     배경이 살짝 얼룩지거나 발밑에 같은 색 그림자가 있어도 함께 지워진다."""
     h, w, _ = rgb.shape
@@ -39,6 +40,10 @@ def remove_background(rgb, hue_tolerance=28):
     # 배경보다 뚜렷이 밝은 분홍(꽃봉오리 등)은 배경으로 보지 않는다. 발밑 그림자는 배경보다 어두우므로 지워진다.
     bg_value = float(bg.max()) / 255
     similar = (diff < hue_tolerance) & (sat > 0.38) & (mx <= bg_value + 0.09)
+    if keep_dark:
+        # --keep-dark: 아주 어두운 점(밝기가 배경보다 0.35 이상 낮음)은 색이 비슷해도 배경으로 보지 않는다
+        # (어두운 보라빛 몸통이 지워지지 않게). 발밑 그림자처럼 조금 어두운 자홍색은 그대로 지워진다.
+        similar &= mx >= bg_value - 0.35
     # 나뭇잎 사이처럼 둘러싸인 틈으로 비치는 배경색은 번져 가는 방식으로는 닿지 않으므로 색이 거의 같으면 지운다.
     near_bg = np.sqrt(((rgb.astype(np.int32) - bg) ** 2).sum(axis=2)) < 45
     mask = np.zeros((h, w), dtype=bool)  # True = 배경
@@ -107,17 +112,19 @@ def small_blobs(solid):
 
 
 def main():
-    sheet_path, out_dir, names = sys.argv[1], sys.argv[2], sys.argv[3].split(',')
-    rows = int(sys.argv[4]) if len(sys.argv) > 4 else 2
-    out_w = int(sys.argv[5]) if len(sys.argv) > 5 else SIZE
-    out_h = int(sys.argv[6]) if len(sys.argv) > 6 else out_w
+    keep_dark = '--keep-dark' in sys.argv
+    argv = [a for a in sys.argv if a != '--keep-dark']
+    sheet_path, out_dir, names = argv[1], argv[2], argv[3].split(',')
+    rows = int(argv[4]) if len(argv) > 4 else 2
+    out_w = int(argv[5]) if len(argv) > 5 else SIZE
+    out_h = int(argv[6]) if len(argv) > 6 else out_w
     image = Image.open(sheet_path).convert('RGB')
     # 계산을 빠르게 하려고 긴 변 768로 줄여서 처리한다.
     scale = 768 / max(image.size)
     if scale < 1:
         image = image.resize((round(image.width * scale), round(image.height * scale)), Image.LANCZOS)
     rgb = np.array(image)
-    background, bg_color = remove_background(rgb)
+    background, bg_color = remove_background(rgb, keep_dark=keep_dark)
     opaque = ~background
     boxes = sorted(components(opaque), reverse=True)[:len(names)]
     if len(boxes) < len(names):

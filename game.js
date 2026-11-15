@@ -66,8 +66,8 @@ const CONFIG = {
   minPets: 2, // 놓아주기를 해도 이 수 아래로는 내려가지 않는다(교배가 불가능해지는 것을 방지).
 
   // 마을 발전: 점수 = 건물 수 + 발견 종족 수 × 2. 배열의 n번째 값 이상이면 n+1단계.
-  // 4단계 기준(36)은 "모든 시설 6개 + 전체 종족 15종 발견"의 점수다. 종족이나 시설 수를 바꾸면 함께 맞춘다.
-  villageLevelThresholds: [0, 8, 13, 36],
+  // 4단계 기준(66)은 "모든 시설 6개 + 전체 종족 30종 발견"의 점수다. 종족이나 시설 수를 바꾸면 함께 맞춘다.
+  villageLevelThresholds: [0, 8, 13, 66],
 
   // 화면 연출
   baseMoveSpeed: 0.11,
@@ -139,7 +139,26 @@ const SPECIES = {
   // 복합 속성(속성 2개) 종족. BREEDING_RULES.elementPairs에 등록된 부모 속성 조합에서 태어난다.
   lotusfrog: { name: '연개롱', icon: '🐸', image: 'assets/pets/lotusfrog.png', element: 'water', element2: 'grass', color: '#a9d6a0', rarity: 'epic', region: 'forest', breedOnly: true, description: '연잎을 우산처럼 쓰고 다닌다.' },
   flarefly: { name: '팔랑불', icon: '🦋', image: 'assets/pets/flarefly.png', element: 'fire', element2: 'electric', color: '#f0b072', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓마다 작은 불티가 튄다.' },
-  sandhamster: { name: '모랑이', icon: '🐹', image: 'assets/pets/sandhamster.png', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' }
+  sandhamster: { name: '모랑이', icon: '🐹', image: 'assets/pets/sandhamster.png', element: 'earth', element2: 'wind', color: '#e3cf9f', rarity: 'epic', region: 'forest', breedOnly: true, description: '볼주머니에 모래바람을 담아 다닌다.' },
+
+  // 복합 속성 확장(12종): 남은 속성 조합마다 한 종족. 모두 에픽·숲 소속·조합 전용.
+  steamhippo: { name: '보글이', icon: '🦛', image: 'assets/pets/steamhippo.png', element: 'fire', element2: 'water', color: '#a9bfe0', rarity: 'epic', region: 'forest', breedOnly: true, description: '등에서 따뜻한 김이 몽글몽글 피어오른다.' },
+  lavamole: { name: '뜨끈이', icon: '🌋', image: 'assets/pets/lavamole.png', element: 'fire', element2: 'earth', color: '#9a6a4f', rarity: 'epic', region: 'forest', breedOnly: true, description: '등의 작은 화산이 졸릴 때마다 연기를 뿜는다.' },
+  emberhawk: { name: '화르릉', icon: '🦅', image: 'assets/pets/emberhawk.png', element: 'fire', element2: 'wind', color: '#e0704a', rarity: 'epic', region: 'forest', breedOnly: true, description: '꼬리 불꽃이 바람을 타고 춤춘다.' },
+  maplecat: { name: '단풍냥', icon: '🐈', image: 'assets/pets/maplecat.png', element: 'fire', element2: 'grass', color: '#f1dcb6', rarity: 'epic', region: 'forest', breedOnly: true, description: '단풍잎 꼬리를 흔들며 가을 냄새를 풍긴다.' },
+  mudboar: { name: '질퍽이', icon: '🐗', image: 'assets/pets/mudboar.png', element: 'water', element2: 'earth', color: '#8d6248', rarity: 'epic', region: 'forest', breedOnly: true, description: '진흙 목욕을 하고 나면 기분이 최고다.' },
+  cloudseal: { name: '뭉게', icon: '🦭', image: 'assets/pets/cloudseal.png', element: 'water', element2: 'wind', color: '#eef2f8', rarity: 'epic', region: 'forest', breedOnly: true, description: '구름 같은 털 덕분에 물 위에 둥실 뜬다.' },
+  sparkeel: { name: '찌릿어', icon: '🐍', image: 'assets/pets/sparkeel.png', element: 'water', element2: 'electric', color: '#4fa8a8', rarity: 'epic', region: 'forest', breedOnly: true, description: '몸의 빛 줄무늬로 물속을 환하게 비춘다.' },
+  mossnail: { name: '느릿버섯', icon: '🐌', image: 'assets/pets/mossnail.png', element: 'earth', element2: 'grass', color: '#9cc46a', rarity: 'epic', region: 'forest', breedOnly: true, description: '등껍질 버섯이 자라는 만큼 천천히 걷는다.' },
+  magnetrhino: { name: '철컥이', icon: '🦏', image: 'assets/pets/magnetrhino.png', element: 'earth', element2: 'electric', color: '#a7aab4', rarity: 'epic', region: 'forest', breedOnly: true, description: '자석 뿔에 작은 돌멩이가 자꾸 달라붙는다.' },
+  dandelfoal: { name: '홀씨', icon: '🐴', image: 'assets/pets/dandelfoal.png', element: 'wind', element2: 'grass', color: '#f4f1e6', rarity: 'epic', region: 'forest', breedOnly: true, description: '달리면 갈기에서 홀씨가 흩날린다.' },
+  stormswallow: { name: '우르릉', icon: '🐦', image: 'assets/pets/stormswallow.png', element: 'wind', element2: 'electric', color: '#3d4f86', rarity: 'epic', region: 'forest', breedOnly: true, description: '날갯짓 소리가 작은 천둥처럼 울린다.' },
+  glowmonkey: { name: '반짝순', icon: '🐒', image: 'assets/pets/glowmonkey.png', element: 'grass', element2: 'electric', color: '#b6dc7c', rarity: 'epic', region: 'forest', breedOnly: true, description: '꼬리 끝 열매로 밤길을 밝혀 준다.' },
+
+  // 전설(3종): 조합으로 얻은 에픽 종족끼리 교배해야 태어나는 상위 종족(BREEDING_RULES.speciesPairs).
+  skywhale: { name: '구름고래', icon: '🐋', image: 'assets/pets/skywhale.png', element: 'water', element2: 'wind', color: '#9fc9ef', rarity: 'legendary', region: 'forest', breedOnly: true, description: '구름 바다를 헤엄치는 전설 속 아기 고래.' },
+  magmadrake: { name: '불바위룡', icon: '🐉', image: 'assets/pets/magmadrake.png', element: 'fire', element2: 'earth', color: '#5a3a3a', rarity: 'legendary', region: 'forest', breedOnly: true, description: '용암 바위 등껍질 아래 뜨거운 마음을 품었다.' },
+  elderstag: { name: '고목령', icon: '🦌', image: 'assets/pets/elderstag.png', element: 'grass', element2: 'earth', color: '#cfe3b0', rarity: 'legendary', region: 'forest', breedOnly: true, description: '등에 진 나무가 숲의 오랜 이야기를 기억한다.' }
 };
 
 /* 종족의 예전 이름.
@@ -210,13 +229,31 @@ const REGIONS = {
 const BREEDING_RULES = {
   speciesPairs: {
     'breezefox+dewotter': [{ speciesId: 'mistdeer', weight: 1 }, { speciesId: 'dewotter', weight: 2 }, { speciesId: 'breezefox', weight: 2 }],
-    'mossbear+pebblelamb': [{ speciesId: 'elderturtle', weight: 1 }, { speciesId: 'mossbear', weight: 2 }, { speciesId: 'pebblelamb', weight: 2 }]
+    'mossbear+pebblelamb': [{ speciesId: 'elderturtle', weight: 1 }, { speciesId: 'mossbear', weight: 2 }, { speciesId: 'pebblelamb', weight: 2 }],
+    // 단계형 조합: 조합 전용 에픽끼리 교배하면 전설이 약 8%(0.35 : 2 : 2), 나머지는 부모 종족.
+    'cloudseal+mistdeer': [{ speciesId: 'skywhale', weight: 0.35 }, { speciesId: 'cloudseal', weight: 2 }, { speciesId: 'mistdeer', weight: 2 }],
+    'flarefly+lavamole': [{ speciesId: 'magmadrake', weight: 0.35 }, { speciesId: 'flarefly', weight: 2 }, { speciesId: 'lavamole', weight: 2 }],
+    'elderturtle+lotusfrog': [{ speciesId: 'elderstag', weight: 0.35 }, { speciesId: 'elderturtle', weight: 2 }, { speciesId: 'lotusfrog', weight: 2 }]
   },
-  // 기본 후보가 3~4종(weight 합 3~4)이므로 아래 값이면 복합 속성 종족이 약 17%로 나온다.
+  // 속성 조합 15가지(서로 다른 두 속성) 모두에 복합 속성 종족이 하나씩 있다.
+  // weight = (그 두 속성을 가진 일반 종족 수) ÷ 5. 숲까지 열었을 때 기본 후보 합이 2~4이므로 복합 속성 종족이 약 17%로 나온다.
+  // (일반 종족 수: 풀 2, 땅 2, 바람 2, 전기 2, 물 1, 불 1. 일반 종족을 추가하면 이 값도 다시 맞춘다.)
   elementPairs: {
     'grass+water': [{ speciesId: 'lotusfrog', weight: 0.6 }],
     'electric+fire': [{ speciesId: 'flarefly', weight: 0.6 }],
-    'earth+wind': [{ speciesId: 'sandhamster', weight: 0.8 }]
+    'earth+wind': [{ speciesId: 'sandhamster', weight: 0.8 }],
+    'fire+water': [{ speciesId: 'steamhippo', weight: 0.4 }],
+    'earth+fire': [{ speciesId: 'lavamole', weight: 0.6 }],
+    'fire+wind': [{ speciesId: 'emberhawk', weight: 0.6 }],
+    'fire+grass': [{ speciesId: 'maplecat', weight: 0.6 }],
+    'earth+water': [{ speciesId: 'mudboar', weight: 0.6 }],
+    'water+wind': [{ speciesId: 'cloudseal', weight: 0.6 }],
+    'electric+water': [{ speciesId: 'sparkeel', weight: 0.6 }],
+    'earth+grass': [{ speciesId: 'mossnail', weight: 0.8 }],
+    'earth+electric': [{ speciesId: 'magnetrhino', weight: 0.8 }],
+    'grass+wind': [{ speciesId: 'dandelfoal', weight: 0.8 }],
+    'electric+wind': [{ speciesId: 'stormswallow', weight: 0.8 }],
+    'electric+grass': [{ speciesId: 'glowmonkey', weight: 0.8 }]
   }
 };
 
@@ -856,7 +893,7 @@ function renderDexTab() {
       const species = SPECIES[id];
       const found = game.discoveredSpecies.includes(id);
       const byElements = Object.values(BREEDING_RULES.elementPairs).some(list => list.some(entry => entry.speciesId === id));
-      const hint = !open ? '지역 미개방' : !species.breedOnly ? '발견 조건 미확인' : byElements ? '특별한 속성 조합 필요' : '특별한 부모 조합 필요';
+      const hint = !open ? '지역 미개방' : !species.breedOnly ? '발견 조건 미확인' : species.rarity === 'legendary' ? '에픽 종족끼리의 특별한 조합 필요' : byElements ? '특별한 속성 조합 필요' : '특별한 부모 조합 필요';
       return `<div class="dex-card ${found ? '' : 'locked'}"><div class="dex-icon">${found ? speciesIconHtml(id) : '❔'}</div><strong>${found ? species.name : '미발견 종족'}</strong><small>${found ? `${elementNames(species)} · ${RARITIES[species.rarity].label}${speciesLooks(id).length ? ` · ✦${speciesLooks(id).length}` : ''}` : hint}</small></div>`;
     }).join('');
     return `<div class="subheading" data-dex-region="${regionId}"><span>${open ? region.icon : '🌫️'} ${region.name}</span><span class="count-pill">${foundCount} / ${ids.length}</span></div><div class="dex-grid">${cards}</div>`;

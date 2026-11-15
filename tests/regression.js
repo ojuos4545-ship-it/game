@@ -310,8 +310,8 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   await page.click('[data-tab="dex"]');
   check('6 도감 탭 표시', (await page.textContent('#panelContent')).includes(`${hatch.dex} / 6`));
   const dexLocked = await page.evaluate(() => ({ total: document.querySelector('.stat strong').textContent, meadow: document.querySelector('[data-dex-region="meadow"]').textContent, forest: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent) }));
-  check('6 도감: 전체 15종 기준 표시 + 지역별 묶음(초원 n/6, 숲 0/9)', dexLocked.total === `${hatch.dex} / 15` && dexLocked.meadow.includes('초원') && dexLocked.meadow.includes(`${hatch.dex} / 6`) && dexLocked.forest.includes('숲') && dexLocked.forest.includes('0 / 9'), JSON.stringify(dexLocked));
-  check('6 도감: 숲 미개방이면 숲 종족 9칸 모두 "지역 미개방"', dexLocked.hints.filter(h => h === '지역 미개방').length === 9);
+  check('6 도감: 전체 30종 기준 표시 + 지역별 묶음(초원 n/6, 숲 0/24)', dexLocked.total === `${hatch.dex} / 30` && dexLocked.meadow.includes('초원') && dexLocked.meadow.includes(`${hatch.dex} / 6`) && dexLocked.forest.includes('숲') && dexLocked.forest.includes('0 / 24'), JSON.stringify(dexLocked));
+  check('6 도감: 숲 미개방이면 숲 종족 24칸 모두 "지역 미개방"', dexLocked.hints.filter(h => h === '지역 미개방').length === 24);
   // 교배 통계: 발견 확률·희귀도 가중
   const stats = await page.evaluate(() => {
     const saved = game.discoveredSpecies; game.discoveredSpecies = ['sproutbun', 'pebblelamb'];
@@ -344,7 +344,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     const allLists = Object.values(BREEDING_RULES.speciesPairs).concat(Object.values(BREEDING_RULES.elementPairs));
     const everyBreedOnlyReachable = Object.keys(SPECIES).filter(id => SPECIES[id].breedOnly).every(id => allLists.some(list => list.some(e => e.speciesId === id)));
     const dualOk = Object.values(SPECIES).every(s => s.element2 === undefined || (ELEMENTS[s.element2] && s.element2 !== s.element));
-    return speciesOk && giftsOk && rulesOk && elementRulesOk && everyBreedOnlyReachable && dualOk && Object.keys(SPECIES).length === 15;
+    return speciesOk && giftsOk && rulesOk && elementRulesOk && everyBreedOnlyReachable && dualOk && Object.keys(SPECIES).length === 30;
   }));
   const forest = await page.evaluate(() => {
     const realDex = game.discoveredSpecies, realRegions = game.unlockedRegions;
@@ -395,7 +395,7 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
       forestHead: document.querySelector('[data-dex-region="forest"]').textContent, hints: [...document.querySelectorAll('.dex-card.locked small')].map(n => n.textContent), panel: document.querySelector('#panelContent').textContent, canvasOk: (() => { drawVillage(); return true; })() };
   });
   check('6-2 숲 종족 알 부화 → 펫 추가·도감 등록·발견 알림', forestUi.hatched && forestUi.dexUp && forestUi.msg.includes('뚜북'), forestUi.msg);
-  check('6-2 도감: 숲 개방 후 숲 1/9, 미발견 조합 전용은 "특별한 부모 조합 필요", 복합 속성은 "특별한 속성 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 9') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && forestUi.hints.filter(h => h === '특별한 속성 조합 필요').length === 3 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('뚜북') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
+  check('6-2 도감: 숲 개방 후 숲 1/24, 미발견 조합 전용은 "특별한 부모 조합 필요", 복합 속성은 "특별한 속성 조합 필요", 전설은 "에픽 종족끼리의 특별한 조합 필요"', forestUi.forestHead.includes('🌲 숲') && forestUi.forestHead.includes('1 / 24') && forestUi.hints.filter(h => h === '특별한 부모 조합 필요').length === 1 && forestUi.hints.filter(h => h === '특별한 속성 조합 필요').length === 15 && forestUi.hints.filter(h => h === '에픽 종족끼리의 특별한 조합 필요').length === 3 && !forestUi.hints.includes('지역 미개방') && forestUi.panel.includes('뚜북') && forestUi.panel.includes('에픽'), JSON.stringify(forestUi.hints));
 
   // ---------- 6-3. 복합 속성(속성 2개) ----------
   const dual = await page.evaluate(() => {
@@ -433,12 +433,58 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
   check('6-3 숲 개방 전에는 복합 속성 종족이 태어나지 않음(6만 회)', dual.locked === 0, String(dual.locked));
   check('6-3 속성 조합에서 복합 속성 종족이 ≈17%(풀+물, 불+전기, 땅+바람, 부모 순서 무관)', dual.rates.every(r => Math.abs(r - 1 / 6) < .02) && Object.keys(dual.frog).sort().join() === 'dewotter,lotusfrog,mossbear,sproutbun', dual.rates.map(r => r.toFixed(3)).join(' / '));
   check('6-3 다른 속성 조합에서는 복합 속성 종족이 나오지 않음(6만 회)', dual.wrongPair === 0, String(dual.wrongPair));
-  check('6-3 복합 속성 부모는 두 속성 모두 자식 후보에 반영', dual.dualParent.join() === 'dewotter,embergecko,mossbear,sproutbun' && dual.dualSame, dual.dualParent.join());
+  check('6-3 복합 속성 부모는 두 속성 모두 자식 후보에 반영(연개롱 물·풀 × 불콩 불 → 물·불 보글이, 풀·불 단풍냥 포함)', dual.dualParent.join() === 'dewotter,embergecko,maplecat,mossbear,sproutbun,steamhippo' && dual.dualSame, dual.dualParent.join());
   check('6-3 작업 적성: 두 속성 중 하나라도 맞으면 적성', dual.affinity.frog.join() === 'farm' && dual.affinity.ham.join() === 'lumber,quarry' && dual.affinity.fly.join() === 'smelter', JSON.stringify(dual.affinity));
   check('6-3 적성 보너스 실제 생산량: 제련소 10분 비적성 10, 적성(불·전기) 13', dual.noBonus === 10 && dual.bonus === 13, `${dual.noBonus} / ${dual.bonus}`);
   check('6-3 펫 정보·목록·작업장 선택에 두 속성과 적성 표시', dual.profile.includes('💧 물 · 🌿 풀') && dual.profile.includes('잘하는 일: 농장') && dual.card.includes('물·풀') && dual.option.includes('적성 ★'), dual.profile);
   check('6-3 도감에 두 속성 표시', dual.dex.includes('물·풀 속성') && dual.dex.includes('불·전기') && dual.dex.includes('땅·바람'));
   check('6-3 속성 1개 종족은 그대로(표시·목록)', dual.single.label === '🌿 풀' && dual.single.names === '풀' && dual.single.list.join() === 'grass', JSON.stringify(dual.single));
+
+  // ---------- 6-8. 조합 확장: 속성 조합 15가지 전부 + 전설(에픽끼리 단계형 조합) ----------
+  const combos = await page.evaluate(() => {
+    const realDex = game.discoveredSpecies, realRegions = game.unlockedRegions;
+    const out = {};
+    const elements = Object.keys(ELEMENTS);
+    // 각 속성마다 그 속성 하나만 가진 일반 종족(초원) 대표
+    const rep = { grass: 'sproutbun', earth: 'pebblelamb', water: 'dewotter', wind: 'breezefox', fire: 'embergecko', electric: 'sparkchick' };
+    const run = (x, y, N) => { const cnt = {}; for (let i = 0; i < N; i++) { const s = pickChildSpecies(makePet(x, ['sturdy']), makePet(y, ['sturdy'])); cnt[s] = (cnt[s] || 0) + 1; } return cnt; };
+    game.discoveredSpecies = Object.keys(SPECIES);
+    // 서로 다른 두 속성 15가지 모두에 복합 속성 종족이 하나씩, 그 종족의 두 속성이 조합과 같다
+    const pairs = []; elements.forEach((a, i) => elements.slice(i + 1).forEach(b => pairs.push([a, b])));
+    out.pairCount = pairs.length;
+    out.mapping = pairs.map(([a, b]) => { const list = BREEDING_RULES.elementPairs[pairKey(a, b)] || []; const sp = list[0] && SPECIES[list[0].speciesId]; return { key: pairKey(a, b), id: list[0] && list[0].speciesId, ok: !!sp && list.length === 1 && pairKey(sp.element, sp.element2 || '') === pairKey(a, b) && sp.breedOnly && sp.rarity === 'epic' }; });
+    out.distinct = new Set(out.mapping.map(m => m.id)).size;
+    // 숲 개방 전에는 어떤 속성 조합에서도 복합 속성·전설이 나오지 않는다
+    const special = (id) => SPECIES[id].breedOnly;
+    game.unlockedRegions = ['meadow'];
+    out.lockedSpecial = pairs.reduce((n, [a, b]) => n + Object.entries(run(rep[a], rep[b], 1500)).filter(([id]) => special(id)).reduce((m, [, c]) => m + c, 0), 0);
+    // 숲 개방 후: 대표 부모(서로 다른 종족)로 각 조합 확률 ≈ 17% (조합마다 8000회)
+    game.unlockedRegions = ['meadow', 'forest'];
+    const N = 8000;
+    // 대표 부모가 종족 조합 전용 짝이면(퐁달+살랑이 = 안슴 전용) 같은 속성의 다른 일반 종족으로 바꾼다(퐁달+솔부).
+    const parentsFor = (a, b) => BREEDING_RULES.speciesPairs[pairKey(rep[a], rep[b])] ? (pairKey(a, b) === 'water+wind' ? ['dewotter', 'pineowl'] : null) : [rep[a], rep[b]];
+    out.rates = pairs.map(([a, b]) => { const id = BREEDING_RULES.elementPairs[pairKey(a, b)][0].speciesId; const [x, y] = parentsFor(a, b); const cnt = run(x, y, N); return { key: pairKey(a, b), rate: (cnt[id] || 0) / N, others: Object.keys(cnt).filter(k => special(k) && k !== id) }; });
+    // 종족 조합이 속성 조합보다 먼저다: 퐁달+살랑이(물+바람)는 안슴 전용이라 뭉게가 나오지 않는다.
+    const exclusive = run('dewotter', 'breezefox', 4000); out.exclusive = { mistdeer: exclusive.mistdeer || 0, cloudseal: exclusive.cloudseal || 0 };
+    // 전설: 정해진 에픽 두 종족끼리만, 약 8%, 나머지는 부모 종족
+    const legends = { skywhale: ['cloudseal', 'mistdeer'], magmadrake: ['flarefly', 'lavamole'], elderstag: ['elderturtle', 'lotusfrog'] };
+    out.legend = Object.entries(legends).map(([id, [a, b]]) => { const cnt = run(a, b, 20000), rev = run(b, a, 5000); return { id, rate: (cnt[id] || 0) / 20000, rev: (rev[id] || 0) / 5000, keys: Object.keys(cnt).sort().join(), isLegend: SPECIES[id].rarity === 'legendary' && SPECIES[id].breedOnly }; });
+    // 전설은 다른 어떤 조합에서도 나오지 않는다(에픽 다른 짝, 일반 종족 조합)
+    const legendIds = Object.keys(legends);
+    const otherPairs = [['cloudseal', 'lavamole'], ['mistdeer', 'elderturtle'], ['lotusfrog', 'flarefly'], ['sproutbun', 'dewotter'], ['skywhale', 'skywhale'], ['breezefox', 'dewotter']];
+    out.legendElsewhere = otherPairs.reduce((n, [a, b]) => { const cnt = run(a, b, 3000); return n + legendIds.filter(id => id !== a).reduce((m, id) => m + (cnt[id] || 0), 0); }, 0);
+    // 숲 개방 전에는 전설도 나오지 않는다
+    game.unlockedRegions = ['meadow'];
+    out.legendLocked = Object.entries(legends).reduce((n, [id, [a, b]]) => n + (run(a, b, 3000)[id] || 0), 0);
+    game.discoveredSpecies = realDex; game.unlockedRegions = realRegions;
+    return out;
+  });
+  check('6-8 서로 다른 두 속성 15가지 모두에 복합 속성 종족이 하나씩(종족의 두 속성 = 조합, 에픽·조합 전용, 서로 다른 종족)', combos.pairCount === 15 && combos.mapping.every(m => m.ok) && combos.distinct === 15, JSON.stringify(combos.mapping.filter(m => !m.ok)));
+  check('6-8 숲 개방 전에는 어떤 속성 조합에서도 조합 전용 종족이 안 나옴', combos.lockedSpecial === 0, String(combos.lockedSpecial));
+  check('6-8 숲 개방 후 15가지 속성 조합 모두 ≈17%로 해당 종족만 나옴(조합마다 8000회)', combos.rates.every(r => Math.abs(r.rate - 1 / 6) < .025 && r.others.length === 0), combos.rates.map(r => `${r.key} ${r.rate.toFixed(3)}${r.others.length ? ' +' + r.others.join('/') : ''}`).join(' · '));
+  check('6-8 종족 조합이 속성 조합보다 먼저: 퐁달+살랑이는 안슴 전용(뭉게는 퐁달+솔부 등 다른 물·바람 부모에서)', combos.exclusive.mistdeer > 0 && combos.exclusive.cloudseal === 0, JSON.stringify(combos.exclusive));
+  check('6-8 전설 3종: 정해진 에픽 두 종족끼리 ≈8%(부모 순서 무관), 나머지는 부모 종족', combos.legend.every(l => l.isLegend && Math.abs(l.rate - .08) < .012 && Math.abs(l.rev - .08) < .025 && l.keys.split(',').length === 3), combos.legend.map(l => `${l.id} ${l.rate.toFixed(3)}/${l.rev.toFixed(3)} [${l.keys}]`).join(' · '));
+  check('6-8 전설은 다른 조합·숲 개방 전에는 안 나옴', combos.legendElsewhere === 0 && combos.legendLocked === 0, JSON.stringify({ elsewhere: combos.legendElsewhere, locked: combos.legendLocked }));
 
   // ---------- 6-4. 마을 단계 기준·그림 교체 준비 ----------
   const balance = await page.evaluate(() => {

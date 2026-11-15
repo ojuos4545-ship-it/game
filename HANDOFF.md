@@ -1,6 +1,6 @@
 # Little Haven — 작업 인계 문서 (다른 AI·다른 컴퓨터로 이어 가기)
 
-이 문서 하나만 읽어도 지금까지의 작업을 이어 갈 수 있도록 정리했다. 최종 갱신: 2026-11-14.
+이 문서 하나만 읽어도 지금까지의 작업을 이어 갈 수 있도록 정리했다. 최종 갱신: 2026-11-15.
 지금까지의 개발은 클라우드의 Claude Code로 진행했다. 앞으로 **사용자 PC의 Claude Code(Windows PowerShell)**나 GPT(ChatGPT, Codex 등)에서 이어 가는 것을 전제로 쓴다. PC에서 시작하는 순서는 14장에 있다.
 
 **읽는 순서**: 이 문서 → `CLAUDE.md`(Claude Code용 작업 규칙, 자동으로 읽힘) 또는 `AGENTS.md`(GPT·Codex용, 내용 같음) → 필요할 때 `IMPLEMENTATION_STATUS.md`(기능별 구현 현황), `FINAL_DESIGN_REPORT.md`(원래 기획), `DEVELOPMENT_GUIDE.md`(단계별 개발 안내), `TEST_RESULTS.md`(검사 기록).
@@ -12,8 +12,8 @@
 | 항목 | 상태 |
 |---|---|
 | 게임 | PC 브라우저용 펫 수집·교배·육성 시뮬레이션. `index.html`을 열면 바로 실행된다(서버·설치 불필요) |
-| 개발 단계 | 개발 길라잡이 10단계 중 **9단계 완료, 10단계 중 그림 교체 완료**. 그 뒤 사용자 요청으로 그림체 통일(슬달이 방식), 펫·시설 크기 조정, **격자 자유 배치·옮기기**까지 했다. 종족 이름도 2026-11-14에 확정했다. 남은 것은 밸런스 조정 |
-| 자동 검사 | `node tests/regression.js` → **총 180개 중 통과 180, 실패 0** (2026-11-14 기준) |
+| 개발 단계 | 개발 길라잡이 10단계 중 **9단계 완료, 10단계 중 그림 교체 완료**. 그 뒤 사용자 요청으로 그림체 통일(슬달이 방식), 펫·시설 크기 조정, **격자 자유 배치·옮기기**까지 했다. 종족 이름도 2026-11-14에 확정했다. 2026-11-15에 **조합법·종족 확장**(15종 추가, 전체 30종)을 했다. 남은 것은 밸런스 조정 |
+| 자동 검사 | `node tests/regression.js` → **총 186개 중 통과 186, 실패 0** (2026-11-15 기준) |
 | 최신 코드 위치 | GitHub `ojuos4545-ship-it/game` 저장소의 **`main`**. 클라우드 작업 브랜치(`claude/fervent-sagan-ghojpc`)의 작업을 2026-11-14에 모두 합쳤다 |
 | 버전 표기 | 화면 하단 `EARLY PLAYABLE BUILD · v0.3` |
 | 저장 데이터 | 브라우저 `localStorage`의 `little-haven-save-v1` 키, 구조 버전 1. v0.1 저장부터 그대로 이어서 불러온다 |
@@ -134,6 +134,12 @@
    - 흙길은 없앴다.
    - 철거는 이번에 넣지 않았다.
 8. **새 초원 배경 적용(2026-11-14)**: 풀 포기, 들꽃, 명암 얼룩이 있는 배경을 코드로 만들어 시험판을 보여 줬고, 사용자 허락을 받아 적용했다. 검사 2개를 바뀐 사양에 맞췄다(`TEST_RESULTS.md` "검사 자체를 고친 기록").
+9. **조합법·종족 확장(2026-11-15)**: 사용자가 "조합법이 너무 제한적"이라고 해서, 새 지역 대신 조합을 늘렸다. 사용자와 정한 내용은 다음과 같다.
+   - 속성 조합 15가지를 전부 채운다(복합 속성 에픽 12종 추가).
+   - 에픽끼리 교배하면 전설이 나오는 단계형 조합을 넣는다(전설 3종).
+   - 규모는 "크게"(15종 추가, 전체 30종). 그림은 같은 Higgsfield 방식(슬달이 방식)으로 만든다.
+   - 검사를 처음 돌렸을 때 물 + 바람이 0%로 나왔다. 대표 부모로 고른 퐁달 + 살랑이가 안슴 전용 쌍이라 종족 조합이 먼저 적용된 것이다(게임 버그 아님). 검사 부모를 퐁달 + 솔부로 바꾸고, "종족 조합이 먼저"라는 규칙 자체를 검사 항목으로 추가했다.
+   - 이 작업은 `claude/fervent-sagan-ghojpc` 브랜치에 있다. `main`에 합칠지는 사용자에게 물어서 정한다.
 
 ---
 
@@ -149,7 +155,7 @@ game/
 │  ├─ buildings/         시설 그림 6장 (50×42, 파일 이름 = 시설 ID, 화면에는 2배 = 100×84)
 │  ├─ decor/             tree·pine 32, bush 22, flowers·rock 18, egg 12 (화면에는 2배)
 │  └─ resources/         wood, stone, plant, ore (24×24)
-├─ tests/regression.js   자동 검사 180개 (실제 Chromium으로 게임을 조작)
+├─ tests/regression.js   자동 검사 186개 (실제 Chromium으로 게임을 조작)
 ├─ tools/
 │  ├─ slice_sprites.py       여러 그림이 든 한 장을 하나씩 잘라 투명 PNG로 만드는 도구
 │  ├─ bold_pixels.py         잘라 낸 그림을 진한 외곽선·쨍한 색으로 다듬는 도구(슬달이 방식)
@@ -221,7 +227,7 @@ v0.3에서 새로 생긴 값은 `unlockedRegions`, `regionGiftsGiven`, `discover
 
 ## 7. 게임 데이터 현황
 
-### 종족 15종 (이름은 2026-11-14 확정)
+### 종족 30종 (처음 15종 이름은 2026-11-14 확정, 15종은 2026-11-15 추가)
 
 | ID | 이름 | 속성 | 희귀도 | 지역 | 얻는 방법 |
 |---|---|---|---|---|---|
@@ -240,6 +246,29 @@ v0.3에서 새로 생긴 값은 `unlockedRegions`, `regionGiftsGiven`, `discover
 | `lotusfrog` | 연개롱 | 물·풀 | 에픽 | 숲 | 속성 조합 전용: 풀 + 물 (약 17%) |
 | `flarefly` | 팔랑불 | 불·전기 | 에픽 | 숲 | 속성 조합 전용: 불 + 전기 (약 17%) |
 | `sandhamster` | 모랑이 | 땅·바람 | 에픽 | 숲 | 속성 조합 전용: 땅 + 바람 (약 17%) |
+| `steamhippo` | 보글이 | 불·물 | 에픽 | 숲 | 속성 조합 전용: 불 + 물 (약 17%) |
+| `lavamole` | 뜨끈이 | 불·땅 | 에픽 | 숲 | 속성 조합 전용: 불 + 땅 (약 17%) |
+| `emberhawk` | 화르릉 | 불·바람 | 에픽 | 숲 | 속성 조합 전용: 불 + 바람 (약 17%) |
+| `maplecat` | 단풍냥 | 불·풀 | 에픽 | 숲 | 속성 조합 전용: 불 + 풀 (약 17%) |
+| `mudboar` | 질퍽이 | 물·땅 | 에픽 | 숲 | 속성 조합 전용: 물 + 땅 (약 17%) |
+| `cloudseal` | 뭉게 | 물·바람 | 에픽 | 숲 | 속성 조합 전용: 물 + 바람 (약 17%, 단 퐁달 + 살랑이는 안슴 조합이 우선) |
+| `sparkeel` | 찌릿어 | 물·전기 | 에픽 | 숲 | 속성 조합 전용: 물 + 전기 (약 17%) |
+| `mossnail` | 느릿버섯 | 땅·풀 | 에픽 | 숲 | 속성 조합 전용: 땅 + 풀 (약 17%) |
+| `magnetrhino` | 철컥이 | 땅·전기 | 에픽 | 숲 | 속성 조합 전용: 땅 + 전기 (약 17%) |
+| `dandelfoal` | 홀씨 | 바람·풀 | 에픽 | 숲 | 속성 조합 전용: 바람 + 풀 (약 17%) |
+| `stormswallow` | 우르릉 | 바람·전기 | 에픽 | 숲 | 속성 조합 전용: 바람 + 전기 (약 17%) |
+| `glowmonkey` | 반짝순 | 풀·전기 | 에픽 | 숲 | 속성 조합 전용: 풀 + 전기 (약 17%) |
+| `skywhale` | 구름고래 | 물·바람 | 전설 | 숲 | 단계형 조합: 뭉게 + 안슴 (약 8%) |
+| `magmadrake` | 불바위룡 | 불·땅 | 전설 | 숲 | 단계형 조합: 팔랑불 + 뜨끈이 (약 8%) |
+| `elderstag` | 고목령 | 풀·땅 | 전설 | 숲 | 단계형 조합: 뚜북 + 연개롱 (약 8%) |
+
+**조합 규칙 요약 (2026-11-15 확장)**
+
+- 서로 다른 두 속성의 조합은 15가지이고, 조합마다 복합 속성 에픽이 하나씩 있다(`BREEDING_RULES.elementPairs`). 부모 두 마리가 가진 속성 중에 그 두 속성이 모두 있으면 후보에 들어간다.
+- 가중치는 "그 두 속성을 가진 일반 종족 수 ÷ 5"로 정해 어느 조합이든 약 17%가 되게 맞췄다(일반 종족 수: 풀 2, 땅 2, 바람 2, 전기 2, 물 1, 불 1). 일반 종족을 늘리면 이 가중치도 함께 고쳐야 한다.
+- 전설은 `speciesPairs`에 "에픽 + 에픽" 쌍으로 들어 있다(전설 0.35 : 부모 2 : 2 → 약 8%).
+- **주의**: `speciesPairs`에 있는 부모 쌍은 속성 조합보다 먼저 적용되고 그 표만 쓴다. 그래서 퐁달 + 살랑이(물 + 바람)에서는 뭉게가 나오지 않는다. 새 종족 조합 쌍을 넣을 때 속성 조합을 막지 않는지 확인한다.
+- 도감의 미발견 칸 안내: 전설은 "에픽 종족끼리의 특별한 조합 필요", 속성 조합 종족은 "특별한 속성 조합 필요", 종족 조합 종족은 "특별한 부모 조합 필요".
 
 **종족 이름을 바꾸는 방법**
 
@@ -281,7 +310,7 @@ v0.3에서 새로 생긴 값은 `unlockedRegions`, `regionGiftsGiven`, `discover
 
 ### 마을 단계
 
-점수는 `시설 수 + 발견 종족 수 × 2`이고, 기준은 `[0, 8, 13, 36]`이다. 4단계 기준 36은 "시설 6개 + 15종 전부"의 점수라서, **종족이나 시설 수를 바꾸면 함께 맞춰야 한다**.
+점수는 `시설 수 + 발견 종족 수 × 2`이고, 기준은 `[0, 8, 13, 66]`이다. 4단계 기준 66은 "시설 6개 + 30종 전부(×2)"의 점수라서, **종족이나 시설 수를 바꾸면 함께 맞춰야 한다**.
 
 ### 현재 밸런스 값 (전부 임시, `CONFIG`)
 
@@ -320,7 +349,7 @@ npx playwright install chromium
 node tests/regression.js
 ```
 
-- 마지막 줄이 `총 180개 중 통과 180, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
+- 마지막 줄이 `총 186개 중 통과 186, 실패 0`이면 통과다. 서버를 띄울 필요 없이 `index.html`을 파일로 직접 연다(`LH_URL` 환경변수로 다른 주소 지정 가능).
 - 실제 Chromium 브라우저로 버튼을 누르고, 브라우저 시계만 앞으로 돌려 시간 경과를 흉내 낸다. 배포용 수치는 바꾸지 않는다.
 - 끝날 때 화면 크기별 스크린샷을 임시 폴더에 남긴다.
 
@@ -362,7 +391,7 @@ node tests/regression.js
 
 | 폴더 | 내용 | 크기 | 연결된 곳 |
 |---|---|---|---|
-| `assets/pets` | 종족 15종 | 28×28 (화면 56) | `SPECIES[id].image` |
+| `assets/pets` | 종족 30종 | 28×28 (화면 56) | `SPECIES[id].image` |
 | `assets/buildings` | 시설 6종 | 50×42 (화면 100×84) | `BUILDING_TYPES[id].image` |
 | `assets/decor` | tree, pine, bush, flowers, rock, egg | 32, 32, 22, 18, 18, 12 | 그리기 코드의 `DECOR_IMAGES` |
 | `assets/resources` | wood, stone, plant, ore | 24×24 | `RESOURCES[id].image` |
@@ -376,7 +405,7 @@ node tests/regression.js
 
 ### 그림을 만든 방법 (다시 만들 때 참고)
 
-- **도구**: Higgsfield(이미지 생성 서비스)의 `seedream_5_0_flash` 모델, 4:3 비율, 1k 해상도. 장당 0.5 크레딧이고, 모두 6장을 써서 남은 크레딧은 2.8이다(무료 요금제).
+- **도구**: Higgsfield(이미지 생성 서비스)의 `seedream_5_0_flash` 모델, 4:3 비율, 1k 해상도. 장당 0.5 크레딧이고, 모두 9장을 썼다(무료 요금제, 남은 크레딧 약 1.3).
 - **그림체 맞추기**: 한 장에 여러 개를 그리게 했다. 첫 장(초원 펫 6종)을 만든 뒤, 나머지는 모두 그 첫 장을 **참고 그림**으로 넣어 같은 그림체로 만들었다. 인계 압축 파일의 `reference_sheets/sheet_meadow.png`가 그 첫 장이다. GPT 이미지 생성으로 이어 만들 때도 이 그림을 참고로 올리면 그림체를 맞추기 쉽다.
 - **배경**: 단색 자홍색(마젠타) 배경으로 생성한 뒤 도구로 배경을 지웠다.
 - **자르기 → 다듬기 두 단계**: `tools/slice_sprites.py`로 자르고 `tools/bold_pixels.py`로 다듬는다. Python, Pillow, numpy가 필요하다.
@@ -397,7 +426,7 @@ python3 tools/slice_sprites.py 시트.png 임시폴더 plaza,nursery,farm,lumber
 python3 tools/bold_pixels.py 임시폴더 assets/buildings --colors 24 --saturation 1.25
 ```
 
-- 자르기 도구의 인자는 `시트 출력폴더 이름목록 행수 [가로 세로]` 순서다. 가로·세로를 생략하면 48×48이다.
+- 자르기 도구의 인자는 `시트 출력폴더 이름목록 행수 [가로 세로] [--keep-dark]` 순서다. `--keep-dark`는 배경(자홍색)과 색조가 비슷해도 어두운 점(짙은 보라 등)을 지우지 않는다. 불바위룡이 있는 전설 시트에만 썼고, 기본 동작은 예전과 같다. 가로·세로를 생략하면 48×48이다.
 - 다듬기 값: 펫 색 14개, 시설 색 24개·채도 1.25, 장식 색 18개·채도 1.35, 자원 색 14개·채도 1.3. 장식은 나무 32, 덤불 22, 꽃·바위 18, 알 12 크기로 자른다.
 - 배경과 발밑 그림자를 지운 뒤, 큰 덩어리를 이름 수만큼 골라 위→아래, 왼쪽→오른쪽 순으로 이름을 붙인다.
 - 그림 사이에 번호 글자가 같이 그려져도 작은 덩어리라 버려진다.
@@ -433,6 +462,29 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
   - 그림: village plaza(round cobblestone plaza with a small stone fountain and two flower pots), hatchery hut(round wooden hut with thatched straw roof and a straw nest holding one cream egg), farm(tilled soil plot with green sprouts inside a low wooden fence), lumber camp(log cabin with stacked logs and an axe in a stump), quarry(grey rocky hill with a mine entrance framed by wooden beams, pickaxe, cut stones), smelter(stone furnace with brick chimney and glowing orange fire opening)
 - 장식(3열 2행): round leafy tree, tall pine tree, round bush, white and yellow wildflowers, grey mossy rock, cream egg with light brown speckles
 - 자원(한 줄): bundle of three wooden logs, pile of three grey stones, bundle of green leafy herbs tied with string, dark ore rock with pale blue crystals
+- 조합 확장 에픽 A(3열 2행, 2026-11-15). 펫 공통 문장 끝에 `no ground shadow. Do not use magenta or purple on the creatures.`를 더했다.
+  1. small round pale blue baby hippo with little wisps of white steam rising from its back (보글이)
+  2. brown mole with a tiny glowing orange volcano-shaped bump on its back (뜨끈이)
+  3. small reddish-orange hawk chick whose tail feathers are flickering flames (화르릉)
+  4. cream cat with a big fluffy tail shaped like red-orange maple leaves (단풍냥)
+  5. muddy brown baby boar with mud splashes and a little water puddle drop on its snout (질퍽이)
+  6. white seal pup wrapped in soft fluffy cloud-like fur with a pale blue belly (뭉게)
+- 조합 확장 에픽 B(3열 2행)
+  1. teal baby eel curled in an S shape with glowing yellow light stripes along its body (찌릿어)
+  2. slow green snail whose shell is a cluster of small brown and red mushrooms (느릿버섯)
+  3. grey baby rhino with a small horseshoe magnet shaped horn with red and silver tips (철컥이)
+  4. small white foal with a fluffy dandelion-seed puff mane and tail (홀씨)
+  5. navy blue swallow bird with yellow lightning-bolt patterns on its wings (우르릉)
+  6. light green monkey whose curly tail ends in a glowing yellow round fruit (반짝순)
+- 전설 3종(한 줄, `slightly more detailed and special looking with a few tiny sparkles attached`를 더함)
+  1. baby sky whale, pale blue with white cloud puffs around its fins and tail, floating (구름고래)
+  2. small chubby baby dragon whose back is dark lava rock plates with glowing orange cracks, tiny wings (불바위룡)
+  3. gentle deer spirit, soft green and cream, carrying a small leafy tree with spreading branches on its back instead of antlers (고목령)
+- 조합 확장 시트를 자른 명령:
+  - `python3 tools/slice_sprites.py sheet_a.png raw steamhippo,lavamole,emberhawk,maplecat,mudboar,cloudseal 2 28 28`
+  - `python3 tools/slice_sprites.py sheet_b.png raw sparkeel,mossnail,magnetrhino,dandelfoal,stormswallow,glowmonkey 2 28 28`
+  - `python3 tools/slice_sprites.py sheet_legend.png raw skywhale,magmadrake,elderstag 1 28 28 --keep-dark`
+  - `python3 tools/bold_pixels.py raw assets/pets --colors 14`
 
 ### 이미지 생성에서 겪은 일 (같은 서비스를 쓸 때)
 
@@ -510,6 +562,6 @@ Create a NEW pixel art sprite sheet in exactly the same art style as the referen
 
 1. **로컬 변경 확인**: 저장소 폴더에서 `git status`로 커밋하지 않은 변경이 있는지 본다. 있으면 덮어쓰지 말고 사용자에게 먼저 알린다(커밋할지, 따로 보관할지).
 2. **최신 내용 받기**: `git checkout main` 후 `git pull`로 GitHub `main`의 최신 내용을 받는다. 충돌이 나면 사용자에게 어떤 파일이 왜 충돌했는지 쉬운 말로 설명하고 어느 쪽을 남길지 묻는다.
-3. **검사**: `node tests/regression.js` → "실패 0" 확인(지금 180개). 검사 도구가 없다는 오류가 나면 `npm install`과 `npx playwright install chromium`을 먼저 한다. PowerShell이 `npm`·`npx` 실행을 막으면 `npm.cmd`, `npx.cmd`로 실행한다.
+3. **검사**: `node tests/regression.js` → "실패 0" 확인(지금 186개). 검사 도구가 없다는 오류가 나면 `npm install`과 `npx playwright install chromium`을 먼저 한다. PowerShell이 `npm`·`npx` 실행을 막으면 `npm.cmd`, `npx.cmd`로 실행한다.
 4. **확인**: 게임은 저장소 폴더의 `index.html`을 Chrome으로 열어 본다. 파일 하나로 주고받아야 하면 `python tools/build_single_html.py`를 쓴다.
 5. **올리기**: PC에서 작업한 내용은 사용자가 "커밋하고 푸시해줘"라고 하면 올린다. 다른 컴퓨터나 클라우드에서 이어 할 때는 먼저 `git pull`로 최신 내용을 받는다.
