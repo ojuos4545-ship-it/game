@@ -3,7 +3,7 @@
 **마지막 작업**: 2026-11-15, 클라우드(Claude Code 원격 환경)
 
 ## 한 줄 요약
-7단계 거의 완료. 남은 것: **사용자 Windows PC에서 .exe 실행 확인** → 확인되면 미니판 완성(1.0.0).
+🎉 **미니판 완성 (v1.0.0)**. 1~7단계 모두 완료, Windows 실행 확인됨. 다음 목표는 사용자와 정할 것.
 
 ## 이번에 한 일
 - (7단계) 밸런스 모의 플레이 `tools/balance_sim.tscn` (`godot --headless --path . res://tools/balance_sim.tscn`), Windows 내보내기 `tools/export_windows.sh` (템플릿 `windows_release_x86_64.exe` 필요), `tools/deploy_web.sh`가 Windows 압축본도 함께 올림
@@ -23,9 +23,9 @@
 - 펫 모형 한눈에 보기: `tools/screenshot.sh build/pets.png 20 --scene=res://tools/capture/pet_gallery.tscn`
 
 ## 다음에 할 일 (순서대로)
-1. 사용자가 Windows에서 `LittleHaven-windows.zip` 실행 확인 → 문제 없으면 버전 1.0.0, CHANGELOG에 "미니판 완성"
-2. 실행이 안 되면: 오류 메시지·화면 받아서 원인 분석 (Godot 4.7.2 에디터에서 직접 내보내기도 대안)
-3. 이후 추후 확장 목록(GAME_DESIGN.md 12장)에서 사용자와 다음 목표 정하기
+1. 사용자 플레이 피드백 반영 (밸런스: 후반 루미까지 약 10분간 새 펫 없음 — 지루하면 조정)
+2. 추후 확장 목록(GAME_DESIGN.md 12장, TASKS.md "추후 확장")에서 사용자와 다음 목표 정하기
+3. 새 기능은 미니판과 같은 방식으로: 기획 확정 → 단계 나누기 → 기능 하나씩 구현·검증
 
 ## 이어받는 방법
 - 저장소: https://github.com/ojuos4545-ship-it/game

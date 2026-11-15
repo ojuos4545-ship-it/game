@@ -1,8 +1,8 @@
 # PROJECT_STATUS — 현재 진행 상황
 
 **마지막 갱신**: 2026-11-15
-**현재 버전**: 0.7.0
-**현재 단계**: 7단계 거의 완료 → 실제 Windows PC에서 .exe 실행 확인만 남음
+**현재 버전**: 1.0.0
+**현재 단계**: 🎉 미니판 완성 (1~7단계 모두 완료) → 다음 목표는 사용자와 결정
 **Windows 다운로드**: https://ojuos4545-ship-it.github.io/game/LittleHaven-windows.zip
 **웹 테스트 주소**: https://ojuos4545-ship-it.github.io/game/ (GitHub Pages 켜야 열림 — README 참고)
 
@@ -16,7 +16,7 @@
 | 4. 조합 시스템 | ✅ 완료 |
 | 5. 작업장 시스템 | ✅ 완료 |
 | 6. 저장 및 통합 | ✅ 완료 |
-| 7. 최종 완성 | 🟡 Windows 실행 확인 대기 |
+| 7. 최종 완성 | ✅ 완료 |
 
 ## 지금 작동하는 것 (검증됨)
 - 쿼터뷰 마을 화면: 작업장 부지 3곳(이름표), 길, 나무·바위·꽃 (`docs/screenshots/stage2_main.png`)
@@ -36,7 +36,7 @@
 - 자동 저장·불러오기, 새 게임, 도감 완성 축하 (`docs/screenshots/stage6_menu.png`, `stage6_celebrate.png`)
 - 웹 버전 새로고침 후에도 진행 유지 (`docs/screenshots/stage6_web_reloaded.png`)
 - 밸런스: 도감 완성 약 20분 (모의 플레이)
-- Windows 실행 파일 (게임 데이터 작동 확인, 실제 Windows 실행은 미확인)
+- Windows 실행 파일 — 사용자 Windows PC에서 실행 확인
 - 자동 점검 179개 항목 모두 통과
 
 ## 아직 없는 것
@@ -44,7 +44,6 @@
 - 작업장 부지 클릭 반응 (5단계)
 
 ## 확인 안 된 것
-- 사용자 PC(Windows)에서 .exe 실행 — 클라우드의 Wine(윈도우 흉내 프로그램) 9.0이 Godot 4.7 실행 중 멈춤(Wine 쪽 문제로 판단). 게임 데이터는 리눅스용 Godot으로 정상 작동 확인.
 - 실제 사람이 처음부터 끝까지 플레이한 시간 (모의 플레이로만 측정)
 
 ## 알려진 문제
