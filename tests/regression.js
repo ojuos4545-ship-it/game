@@ -624,13 +624,13 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
       const W = canvas.width, H = canvas.height;
       const bases = () => game.buildings.map(b => ({ x0: b.x * W - BUILDING_BASE.halfWidth, x1: b.x * W + BUILDING_BASE.halfWidth, y0: b.y * H + 40 - BUILDING_BASE.height, y1: b.y * H + 40 }));
       const inBase = pet => bases().some(q => pet.x * W > q.x0 && pet.x * W < q.x1 && petFootY(pet) > q.y0 && petFootY(pet) < q.y1);
-      const freePet = (id, x, y, tx, ty) => { const pet = makePet(id, []); Object.assign(pet, { x, y, targetX: tx, targetY: ty, idleTimer: 999, energy: pet.maxEnergy, workBuildingId: null, resting: false }); return pet; };
+      const freePet = (id, x, y, tx, ty) => { const pet = makePet(id, []); Object.assign(pet, { x, y, targetX: tx, targetY: ty, idleTimer: 999, energy: pet.maxEnergy, workBuildingId: null, resting: false }); petBrain(pet).startDelay = 0; return pet; };
       // (1) 건물을 가로지르는 목적지: 밑면을 한 번도 밟지 않고 도착
       const lumber = game.buildings.find(b => b.type === 'lumber'), plaza = game.buildings.find(b => b.type === 'plaza');
       const crossers = [freePet('sproutbun', lumber.x - .12, lumber.y + .02, lumber.x + .12, lumber.y + .02), freePet('pebblelamb', plaza.x, plaza.y - .14, plaza.x, plaza.y + .2)];
-      game.pets = crossers; let entered = 0;
+      const goals = crossers.map(p => [p.targetX, p.targetY]); game.pets = crossers; let entered = 0;
       for (let i = 0; i < 600; i++) { movePets(50); crossers.forEach(p => { if (inBase(p)) entered++; }); }
-      out.entered = entered; out.arrived = crossers.map(p => Math.hypot(p.x - p.targetX, p.y - p.targetY) < .01);
+      out.entered = entered; out.arrived = crossers.map((p, k) => Math.hypot(p.x - goals[k][0], p.y - goals[k][1]) < .01);
       // (2) 경로가 직선이 아님(건물을 돌아감)
       const path = findPath(lumber.x * W - 115, lumber.y * H + 28, lumber.x * W + 115, lumber.y * H + 28);
       out.detour = Array.isArray(path) && path.length >= 2;
@@ -669,12 +669,60 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     } finally { const b = JSON.parse(backup); game.pets = b.pets; game.buildings = b.buildings; petNav.clear(); }
     return out;
   });
-  check('6-9 건물을 가로지르는 목적지: 밑면을 밟지 않고 돌아서 도착', depth.entered === 0 && depth.arrived.every(Boolean) && depth.detour, JSON.stringify({ entered: depth.entered, arrived: depth.arrived, detour: depth.detour }));
+  check('6-9 건물을 가로지르는 목적지: 밑면을 밟지 않고 돌아서 원래 목적지에 도착', depth.entered === 0 && depth.arrived.every(Boolean) && depth.detour, JSON.stringify({ entered: depth.entered, arrived: depth.arrived, detour: depth.detour }));
   check('6-9 자유 생활 목적지는 건물 밑면·나무 밑동이 아님(300회)', depth.badTargets === 0, String(depth.badTargets));
   check('6-9 발 기준 앞뒤 정렬: 건물 뒤 펫은 먼저(가려짐), 앞 펫은 나중에, 그림자는 맨 먼저', depth.order.behindFirst && depth.order.frontAfter && depth.order.shadowsFirst && depth.hiddenFlag, JSON.stringify(depth.order));
   check('6-9 대각선 이동 속도가 가로 이동과 같음', Math.abs(depth.speed.diag - depth.speed.straight) < .01 && depth.speed.straight > 0, JSON.stringify(depth.speed));
   check('6-9 같은 자리에 선 펫 두 마리는 서로 비켜섬', depth.apart >= 20, String(depth.apart));
   check('6-9 건물을 펫 위에 지어도 펫이 빠져나옴, 저장되는 펫 항목은 그대로', depth.escaped && depth.savedKeys, JSON.stringify({ escaped: depth.escaped, savedKeys: depth.savedKeys }));
+  // ---------- 6-10. 펫별 행동 상태(대기·이동·작업·휴식) ----------
+  const brains = await page.evaluate(() => {
+    const backup = JSON.stringify({ pets: game.pets, buildings: game.buildings }); const out = {};
+    try {
+      const at = (type, col, row) => ({ id: uid('building'), type, ...cellCenter(col, row), level: 1 });
+      game.buildings = [at('plaza', 10, 6), at('nursery', 16, 3), at('farm', 4, 9), at('lumber', 5, 3), at('quarry', 15, 9), at('smelter', 19, 7)];
+      petNav.clear(); petBrains.clear(); petEffects.clear();
+      const ids = Object.keys(SPECIES);
+      const make = i => { const pet = makePet(ids[i % ids.length], []); pet.energy = pet.maxEnergy; pet.workBuildingId = null; pet.resting = false; return pet; };
+      // (1) 상태 판정
+      const farm = game.buildings.find(b => b.type === 'farm');
+      const worker = make(0), walker = make(1), rester = make(2), idler = make(3);
+      worker.workBuildingId = farm.id; walker.targetX = .85; walker.targetY = .8; walker.x = .15; walker.y = .8;
+      rester.energy = 1; idler.targetX = idler.x; idler.targetY = idler.y; idler.idleTimer = 999;
+      game.pets = [worker, walker, rester, idler];
+      game.pets.forEach(p => { petBrain(p).startDelay = 0; });
+      movePets(50); const early = { worker: petBehavior(worker).state, walker: petBehavior(walker).state };
+      for (let i = 0; i < 400; i++) movePets(50);
+      out.states = { workerEarly: early.worker, worker: petBehavior(worker).state, walker: early.walker, rester: petBehavior(rester).state, restAction: petBehavior(rester).action, idler: petBehavior(idler).state, idleAction: petBehavior(idler).action };
+      // (2) 시작 시점·박자 분산
+      petBrains.clear(); game.pets = Array.from({ length: 12 }, (_, i) => make(i + 4));
+      const fresh = game.pets.map(p => petBrain(p));
+      const delays = fresh.map(b => b.startDelay), tempos = fresh.map(b => b.tempo);
+      out.spread = { delayRange: Math.max(...delays) - Math.min(...delays), distinctTempo: new Set(tempos.map(x => x.toFixed(3))).size, tempoMin: Math.min(...tempos), tempoMax: Math.max(...tempos) };
+      // 첫 출발 시점이 펫마다 다름
+      const firstMove = game.pets.map(() => null); game.pets.forEach(p => { p.targetX = clamp(p.x + .2, .15, .85); p.targetY = p.y; });
+      for (let f = 0; f < 80; f++) { movePets(50); game.pets.forEach((p, k) => { if (firstMove[k] == null && p.moving) firstMove[k] = f; }); }
+      const started = firstMove.filter(v => v != null);
+      out.firstMoveRange = started.length ? Math.max(...started) - Math.min(...started) : -1;
+      // (3) 90초 동안 자유 생활: 펫마다 동작 순서가 다르고, 모두가 같은 상태인 순간이 드묾
+      petBrains.clear(); petNav.clear(); game.pets = Array.from({ length: 8 }, (_, i) => make(i + 20));
+      const seqs = game.pets.map(() => []); let sameMoments = 0, samples = 0; const poses = [];
+      for (let f = 0; f < 1800; f++) {
+        movePets(50);
+        game.pets.forEach((p, k) => { const b = petBehavior(p); const tag = b.state + (b.action ? ':' + b.action : ''); if (seqs[k][seqs[k].length - 1] !== tag) seqs[k].push(tag); poses.push(petPose(p)); });
+        if (f % 10 === 0) { samples++; if (new Set(game.pets.map(p => petBehavior(p).state)).size === 1) sameMoments++; }
+      }
+      const actions = new Set(seqs.flat().filter(s => s.startsWith('IDLE:')).map(s => s.slice(5)));
+      out.variety = { actions: [...actions].sort().join(), uniqueSeqs: new Set(seqs.map(s => s.join('>'))).size, sameRatio: sameMoments / samples, moves: seqs.map(s => s.filter(x => x === 'MOVE').length) };
+      out.poseLimits = { tilt: Math.max(...poses.map(p => Math.abs(p.tilt))), squashMax: Math.max(...poses.map(p => p.squash)), squashMin: Math.min(...poses.map(p => p.squash)), lift: Math.min(...poses.map(p => p.offsetY)) };
+      out.savedKeys = Object.keys(game.pets[0]).sort().join() === Object.keys(makePet('sproutbun', [])).sort().join();
+    } finally { const b = JSON.parse(backup); game.pets = b.pets; game.buildings = b.buildings; petNav.clear(); petBrains.clear(); }
+    return out;
+  });
+  check('6-10 상태 판정: 작업장 가는 중 MOVE → 도착하면 WORK, 걷는 펫 MOVE, 지친 펫 REST(세부 동작 있음), 서 있는 펫 IDLE(세부 동작 있음)', brains.states.workerEarly === 'MOVE' && brains.states.worker === 'WORK' && brains.states.walker === 'MOVE' && brains.states.rester === 'REST' && ['doze', 'curl', 'toss'].includes(brains.states.restAction) && brains.states.idler === 'IDLE' && ['look', 'sit', 'hop', 'stretch', 'sniff'].includes(brains.states.idleAction), JSON.stringify(brains.states));
+  check('6-10 시작 시점·박자 분산: 첫 출발 시점이 1초 이상 흩어지고 펫마다 박자가 다름(0.8~1.25배)', brains.spread.delayRange > 1 && brains.firstMoveRange >= 20 && brains.spread.distinctTempo >= 10 && brains.spread.tempoMin >= .8 && brains.spread.tempoMax <= 1.25, JSON.stringify({ ...brains.spread, firstMoveRange: brains.firstMoveRange }));
+  check('6-10 90초 자유 생활: 대기 동작 4종 이상, 펫마다 동작 순서가 다르고, 모두 같은 상태인 순간이 20% 미만, 모두 돌아다님', brains.variety.actions.split(',').length >= 4 && brains.variety.uniqueSeqs === 8 && brains.variety.sameRatio < .2 && brains.variety.moves.every(n => n >= 2), JSON.stringify(brains.variety));
+  check('6-10 임시 동작은 그림을 과하게 바꾸지 않음(기울기 0.12 이하, 납작·길쭉 10% 이하), 저장 항목 그대로', brains.poseLimits.tilt <= .12 && brains.poseLimits.squashMax <= .1 && brains.poseLimits.squashMin >= -.1 && brains.poseLimits.lift >= -7 && brains.savedKeys, JSON.stringify(brains.poseLimits));
   const rare = await page.evaluate(() => {
     const pet = game.pets[0]; const saved = pet.appearance; const base = readySprite(`pet:${pet.speciesId}`);
     pet.appearance = null; const plain = petSpriteFor(pet);

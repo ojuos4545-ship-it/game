@@ -1532,10 +1532,23 @@ function petPose(pet) {
     const t = (performance.now() - effect.startedAt) / 1000;
     return { offsetY: -Math.abs(Math.sin(t * (effect.type === 'play' ? 11 : 8))) * (effect.type === 'play' ? 7 : 5), tilt: 0, squash: 0 };
   }
-  if (isResting(pet)) return { offsetY: 0, tilt: 0, squash: Math.sin(pet.bob * .6) * .035 };
+  const brain = petBrains.get(pet.id);
+  if (isResting(pet)) {
+    // 휴식: 숨쉬기. 웅크려 자기는 몸을 조금 낮추고 더 천천히 숨쉰다.
+    if (brain && brain.restAction === 'curl') return { offsetY: 0, tilt: 0, squash: .05 + Math.sin(pet.bob * .4) * .03 };
+    return { offsetY: 0, tilt: 0, squash: Math.sin(pet.bob * .6) * .035 };
+  }
   if (pet.moving) {
     const step = pet.bob * 2;
     return { offsetY: -Math.abs(Math.sin(step)) * 3, tilt: Math.sin(step) * .07, squash: (1 - Math.abs(Math.sin(step))) * .06 };
+  }
+  // 대기 중 세부 동작(그림은 그대로 두고 높이·납작함만 살짝 바꾼다. 기울이지 않는다)
+  if (brain && brain.state === 'IDLE') {
+    const t = brain.actionTime, p = clamp(t / brain.actionLength, 0, 1);
+    if (brain.action === 'sit') return { offsetY: 0, tilt: 0, squash: .07 * Math.min(1, t * 4, (brain.actionLength - t) * 4) + Math.sin(pet.bob * .7) * .01 };
+    if (brain.action === 'hop') return { offsetY: -Math.abs(Math.sin(t * 9 * brain.tempo)) * 5, tilt: 0, squash: 0 };
+    if (brain.action === 'stretch') return { offsetY: 0, tilt: 0, squash: -.07 * Math.sin(Math.PI * p) };
+    if (brain.action === 'sniff') return { offsetY: 0, tilt: 0, squash: Math.max(0, Math.sin(t * 7 * brain.tempo)) * .05 };
   }
   return { offsetY: Math.sin(pet.bob) * 2, tilt: 0, squash: 0 };
 }
@@ -1713,17 +1726,99 @@ function settleTarget(pet) {
 }
 // 발을 (fx, fy)로 옮겨도 되는가: 빈 곳이거나, 이미 막힌 곳에 갇혀 있어 빠져나가는 중일 때.
 function canStepTo(pet, fx, fy) { return !footBlocked(fx, fy) || footBlocked(pet.x * canvas.width, petFootY(pet)); }
+// ---------- 펫별 행동 상태 (그리기용. 저장하지 않고, 게임 규칙은 isWorking·isResting이 그대로 정한다) ----------
+// 상태: IDLE(대기·주변 관찰) / MOVE(목적지로 이동) / WORK(작업) / REST(휴식). 대기·휴식 중에는 세부 동작(action)을 고른다.
+// 펫마다 박자(tempo)가 달라서 같은 동작도 빠르기·길이가 다르고, 처음 움직이는 시점도 흩어진다.
+const IDLE_ACTIONS = { look: '두리번', sit: '앉기', hop: '깡충', stretch: '기지개', sniff: '킁킁' };
+const REST_ACTIONS = { doze: '졸기', curl: '웅크려 자기', toss: '뒤척이기' };
+const BEHAVIOR_LABELS = { IDLE: '대기', MOVE: '이동', WORK: '작업', REST: '휴식' };
+const petBrains = new Map();
+function hashUnit(text, salt) { let h = 2166136261 ^ salt; for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; }
+function petBrain(pet) {
+  let brain = petBrains.get(pet.id);
+  if (!brain) {
+    // 박자 0.8~1.25배, 동작 취향(어떤 동작을 자주 하는지)은 펫 id로 정해 새로고침해도 같은 성격을 유지한다.
+    const tempo = .8 + hashUnit(pet.id, 1) * .45;
+    const likes = Object.keys(IDLE_ACTIONS).map((key, i) => .4 + hashUnit(pet.id, 10 + i) * 1.6);
+    // startDelay: 처음 움직이기 시작하는 시점을 펫마다 0~2.5초 흩어 놓는다(모두 동시에 출발하지 않게).
+    brain = { state: 'IDLE', action: 'look', actionTime: 0, actionLength: .4 + Math.random() * 2.6, tempo, likes, restAction: null, nextTurn: 0, workShift: 0, workOffset: 0, startDelay: Math.random() * 2.5 };
+    petBrains.set(pet.id, brain);
+  }
+  return brain;
+}
+function petBehavior(pet) { const b = petBrain(pet); return { state: b.state, action: b.state === 'IDLE' ? b.action : b.state === 'REST' ? b.restAction : null }; }
+function pickIdleAction(pet, brain) {
+  const keys = Object.keys(IDLE_ACTIONS), total = brain.likes.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total, action = keys[0];
+  for (let i = 0; i < keys.length; i++) { roll -= brain.likes[i]; if (roll <= 0) { action = keys[i]; break; } }
+  brain.action = action; brain.actionTime = 0;
+  brain.actionLength = ({ look: 1.6, sit: 2.6, hop: .9, stretch: 1.2, sniff: 1.4 })[action] * (0.75 + Math.random() * .5) / brain.tempo;
+  brain.nextTurn = .3 + Math.random() * .6;
+  if (action === 'look') {
+    // 두리번: 가까운 펫이 있으면 그쪽을 본다.
+    const near = game.pets.filter(o => o !== pet).map(o => ({ o, d: Math.hypot(o.x - pet.x, o.y - pet.y) })).sort((a, b) => a.d - b.d)[0];
+    if (near && near.d < .18) pet.direction = near.o.x >= pet.x ? 1 : -1;
+  }
+}
+// 자유 생활의 다음 목적지: 가까운 곳 산책이 가장 많고, 가끔 멀리 가거나 시설 앞을 구경하러 간다.
+function nextWanderTarget(pet) {
+  const roll = Math.random();
+  if (roll < .2 && game.buildings.length) {
+    const b = game.buildings[Math.floor(Math.random() * game.buildings.length)];
+    return { x: clamp(b.x + (Math.random() - .5) * .08, .1, .9), y: clamp(b.y + .09 + Math.random() * .03, .15, .85) };
+  }
+  if (roll < .75) {
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2, dist = 120 + Math.random() * 140;
+      const x = pet.x + Math.cos(angle) * dist / canvas.width, y = pet.y + Math.sin(angle) * dist * .7 / canvas.height;
+      if (x > .1 && x < .9 && y > .14 && y < .86 && !footBlocked(x * canvas.width, y * canvas.height + PET_FOOT_OFFSET)) return { x, y };
+    }
+  }
+  return randomWalkTarget();
+}
+// 매 프레임: 게임 규칙 상태(작업·휴식)와 위치를 보고 행동 상태와 세부 동작을 정한다.
+function updateBehavior(pet, brain, seconds, workingBuilding, effect) {
+  const atTarget = Math.hypot(pet.targetX - pet.x, pet.targetY - pet.y) < .012;
+  if (workingBuilding) {
+    brain.state = atTarget ? 'WORK' : 'MOVE';
+    if (brain.state === 'WORK') {
+      // 작업 중: 시설 쪽을 보고, 가끔 자리를 고쳐 선다(박자에 따라 간격이 다름).
+      pet.direction = workingBuilding.x >= pet.x ? 1 : -1;
+      brain.workShift -= seconds;
+      if (brain.workShift <= 0) { brain.workShift = (2.5 + Math.random() * 3) / brain.tempo; brain.workOffset = (Math.random() - .5) * .014; }
+    }
+    return;
+  }
+  brain.workOffset = 0;
+  if (isResting(pet)) {
+    if (brain.state !== 'REST') { brain.restAction = ['doze', 'curl', 'toss'][Math.floor(hashUnit(pet.id, 3 + Math.floor(pet.bob)) * 3)]; brain.nextTurn = 3 + Math.random() * 4; }
+    brain.state = 'REST';
+    if (brain.restAction === 'toss') { brain.nextTurn -= seconds; if (brain.nextTurn <= 0) { pet.direction *= -1; brain.nextTurn = (4 + Math.random() * 5) / brain.tempo; } }
+    return;
+  }
+  brain.restAction = null;
+  if (effect) { brain.state = effect.type === 'play' ? 'MOVE' : 'IDLE'; brain.action = 'look'; return; }
+  if (!atTarget && pet.idleTimer == null) { brain.state = 'MOVE'; return; }
+  if (brain.state !== 'IDLE') { brain.state = 'IDLE'; pickIdleAction(pet, brain); }
+  brain.actionTime += seconds;
+  if (brain.action === 'look') {
+    brain.nextTurn -= seconds;
+    if (brain.nextTurn <= 0) { pet.direction *= -1; brain.nextTurn = (.7 + Math.random() * 1.1) / brain.tempo; }
+  }
+  if (brain.actionTime >= brain.actionLength) pickIdleAction(pet, brain);
+}
 function movePets(delta) {
   const seconds=Math.min(delta/1000,.08);
   game.pets.forEach((pet,index)=>{
-    pet.bob += seconds*5;
+    const brain=petBrain(pet);
+    pet.bob += seconds*5*brain.tempo;
     const effect=activePetEffect(pet.id);
     const workingBuilding=isWorking(pet) ? getWorkBuilding(pet) : null;
     if(workingBuilding){
       // 작업 중: 작업장 옆으로 이동해 머문다(첫 번째 펫은 오른쪽, 두 번째 펫은 왼쪽). 시설 이름표를 가리지 않도록 옆에 선다.
       const slot=game.pets.filter(p=>p.workBuildingId===workingBuilding.id).indexOf(pet);
       const side=slot%2===0?1:-1;
-      pet.targetX=clamp(workingBuilding.x+side*(.075+Math.floor(slot/2)*.04),.06,.94);pet.targetY=clamp(workingBuilding.y+.065,.08,.94);
+      pet.targetX=clamp(workingBuilding.x+side*(.075+Math.floor(slot/2)*.04)+brain.workOffset,.06,.94);pet.targetY=clamp(workingBuilding.y+.065,.08,.94);
       pet.idleTimer=null;
     } else if(isResting(pet)){
       // 휴식 중: 제자리에서 쉰다.
@@ -1736,14 +1831,22 @@ function movePets(delta) {
       pet.idleTimer=null;
       if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){const t=randomWalkTarget();pet.targetX=t.x;pet.targetY=t.y;}
     } else if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){
-      // 자유 생활: 목적지에 도착하면 잠깐 머문 뒤 새 목적지를 정한다. 활발한 펫은 덜 머문다.
+      // 자유 생활: 목적지에 도착하면 잠깐 머물며(대기 동작) 새 목적지를 정한다. 활발한 펫은 덜 머물고, 펫마다 박자가 달라 머무는 시간이 다르다.
       if(pet.idleTimer==null){
         const idle=CONFIG.idleSecondsMin+Math.random()*(CONFIG.idleSecondsMax-CONFIG.idleSecondsMin);
-        pet.idleTimer=idle*(traitHas(pet,'lively') ? CONFIG.livelyIdleMultiplier : 1);
+        pet.idleTimer=idle*(traitHas(pet,'lively') ? CONFIG.livelyIdleMultiplier : 1)/brain.tempo;
       }
       pet.idleTimer-=seconds;
-      if(pet.idleTimer<=0){pet.idleTimer=null;const t=randomWalkTarget();pet.targetX=t.x;pet.targetY=t.y;}
+      if(pet.idleTimer<=0){pet.idleTimer=null;const t=nextWanderTarget(pet);pet.targetX=t.x;pet.targetY=t.y;}
     }
+    if(brain.startDelay>0){
+      // 시작 시점 분산: 첫 출발 전까지 제자리에서 두리번거린다(목적지는 그대로 둔다).
+      brain.startDelay-=seconds;pet.moving=false;
+      if(brain.state!=='IDLE'){brain.state='IDLE';pickIdleAction(pet,brain);}
+      brain.actionTime+=seconds;
+      return;
+    }
+    updateBehavior(pet,brain,seconds,workingBuilding,effect);
     settleTarget(pet);
     const playing=Boolean(effect&&effect.type==='play'&&!workingBuilding);
     const speed=CONFIG.baseMoveSpeed*(traitHas(pet,'nimble') ? CONFIG.nimbleSpeedMultiplier : 1)*(playing ? CONFIG.playSpeedMultiplier : 1)*seconds;
