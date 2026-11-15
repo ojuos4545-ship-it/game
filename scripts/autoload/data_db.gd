@@ -211,7 +211,7 @@ func _check_balance() -> void:
 		if not pets.has(pet_id):
 			errors.append("balance.json 시작 펫 '%s'이(가) pets.json에 없음" % pet_id)
 	_check_cost(balance.get("start_resources", {}), "balance.json start_resources")
-	for key in ["production_interval", "like_multiplier"]:
+	for key in ["production_interval", "like_multiplier", "auto_collect"]:
 		if not balance.has(key):
 			errors.append("balance.json: '%s' 없음" % key)
 	balance.start_resources = _int_cost(balance.get("start_resources", {}))

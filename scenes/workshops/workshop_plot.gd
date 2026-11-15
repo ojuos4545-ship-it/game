@@ -233,7 +233,15 @@ func _update_status() -> void:
 	var cap := WorkshopSystem.capacity(workshop_id)
 	var stored_i := int(floor(WorkshopSystem.stored(workshop_id) + 0.001))
 	_name_label.text = "%s Lv%d" % [info.name, WorkshopSystem.level(workshop_id)]
-	if WorkshopSystem.is_full(workshop_id):
+	if WorkshopSystem.auto_collect():
+		var rate := WorkshopSystem.total_output(workshop_id)
+		if rate > 0.0:
+			_status_label.text = "%s +%s / %s초" % [res_name, Iso.fmt(rate), Iso.fmt(DataDB.balance.production_interval)]
+			_status_label.modulate = Color.WHITE
+		else:
+			_status_label.text = "일꾼 없음 · 눌러서 배치"
+			_status_label.modulate = Color("ffd166")
+	elif WorkshopSystem.is_full(workshop_id):
 		_status_label.text = "%s 가득! 눌러서 수집" % res_name
 		_status_label.modulate = Color("ffd166")
 	else:

@@ -1,5 +1,6 @@
 class_name WorkshopSystem
 ## 작업장 규칙: 펫 배치·회수, 생산량 계산, 생산(한 번), 수집, 업그레이드.
+## 자동 수집(balance.json auto_collect = true)이면 생산된 자원이 바로 내 자원으로 들어간다.
 ## 생산량(펫 한 마리, 한 번) = 작업력 × 적성(좋아하는 속성이면 like_multiplier, 아니면 1) × 레벨 보너스
 
 
@@ -119,7 +120,13 @@ static func tick(ws: String) -> float:
 		GameState.produced.emit(ws, p.uid, out)
 	if made > 0.0:
 		GameState.set_workshop_stored(ws, amount)
+		if auto_collect():
+			collect(ws)
 	return made
+
+
+static func auto_collect() -> bool:
+	return DataDB.balance.get("auto_collect", false)
 
 
 static func is_full(ws: String) -> bool:

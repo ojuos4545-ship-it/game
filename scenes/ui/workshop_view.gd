@@ -5,6 +5,7 @@ extends VBoxContainer
 var workshop_id := ""
 
 var _info_label: Label
+var _storage_row: HBoxContainer
 var _storage_bar: ProgressBar
 var _storage_label: Label
 var _collect_button: Button
@@ -23,25 +24,33 @@ func _ready() -> void:
 	_info_label = UIParts.label("", &"", HORIZONTAL_ALIGNMENT_LEFT)
 	add_child(_info_label)
 
-	var storage := HBoxContainer.new()
-	storage.add_theme_constant_override("separation", 12)
-	add_child(storage)
+	# 다음 생산까지 남은 시간 막대
+	var timer_row := HBoxContainer.new()
+	timer_row.add_theme_constant_override("separation", 12)
+	add_child(timer_row)
+	var timer_label := UIParts.label("다음 생산까지", &"SmallLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	timer_label.custom_minimum_size.x = 150
+	timer_row.add_child(timer_label)
+	_timer_bar = _make_bar(Color("8fcf6a"), 10)
+	_timer_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_timer_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	timer_row.add_child(_timer_bar)
+
+	# 창고 + 수집 (자동 수집이 꺼져 있을 때만 보임)
+	_storage_row = HBoxContainer.new()
+	_storage_row.add_theme_constant_override("separation", 12)
+	add_child(_storage_row)
 	_storage_label = UIParts.label("", &"", HORIZONTAL_ALIGNMENT_LEFT)
 	_storage_label.custom_minimum_size.x = 150
-	storage.add_child(_storage_label)
-	var bars := VBoxContainer.new()
-	bars.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bars.alignment = BoxContainer.ALIGNMENT_CENTER
-	storage.add_child(bars)
+	_storage_row.add_child(_storage_label)
 	_storage_bar = _make_bar(Color("b5793f"), 18)
-	bars.add_child(_storage_bar)
-	_timer_bar = _make_bar(Color("8fcf6a"), 6)
-	_timer_bar.tooltip_text = "다음 생산까지"
-	bars.add_child(_timer_bar)
+	_storage_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_storage_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_storage_row.add_child(_storage_bar)
 	_collect_button = Button.new()
 	_collect_button.name = "CollectButton"
 	_collect_button.pressed.connect(_on_collect)
-	storage.add_child(_collect_button)
+	_storage_row.add_child(_collect_button)
 
 	_slots_row = HBoxContainer.new()
 	_slots_row.add_theme_constant_override("separation", 8)
@@ -96,9 +105,11 @@ func refresh() -> void:
 	for e in ws.likes:
 		liked.append(DataDB.get_element(e).name)
 	var interval: float = DataDB.balance.production_interval
-	_info_label.text = "%s 생산 · 좋아하는 속성: %s (생산 ×%s) · %s초마다 %s %s" % [
+	_info_label.text = "%s 생산 · 좋아하는 속성: %s (생산 ×%s) · %s초마다 %s %s%s" % [
 		res.name, "·".join(liked), Iso.fmt(DataDB.balance.like_multiplier),
-		Iso.fmt(interval), res.name, Iso.fmt(WorkshopSystem.total_output(workshop_id))]
+		Iso.fmt(interval), res.name, Iso.fmt(WorkshopSystem.total_output(workshop_id)),
+		" (자동 수집)" if WorkshopSystem.auto_collect() else ""]
+	_storage_row.visible = not WorkshopSystem.auto_collect()
 
 	var cap := WorkshopSystem.capacity(workshop_id)
 	var stored := WorkshopSystem.stored(workshop_id)
@@ -206,9 +217,10 @@ func _refresh_upgrade() -> void:
 	for id in DataDB.resource_ids:
 		if nxt.upgrade_cost.has(id):
 			parts.append("%s %d/%d" % [DataDB.get_resource(id).name, GameState.get_resource(id), nxt.upgrade_cost[id]])
-	_upgrade_label.text = "Lv%d → Lv%d: 자리 %d개, 생산 ×%s, 창고 %d\n비용: %s" % [
+	var cap_text := "" if WorkshopSystem.auto_collect() else ", 창고 %d" % nxt.capacity
+	_upgrade_label.text = "Lv%d → Lv%d: 자리 %d개, 생산 ×%s%s\n비용: %s" % [
 		WorkshopSystem.level(workshop_id), WorkshopSystem.level(workshop_id) + 1,
-		nxt.slots, Iso.fmt(nxt.bonus), nxt.capacity, ", ".join(parts)]
+		nxt.slots, Iso.fmt(nxt.bonus), cap_text, ", ".join(parts)]
 	_upgrade_button.disabled = not WorkshopSystem.check_upgrade(workshop_id).is_empty()
 
 

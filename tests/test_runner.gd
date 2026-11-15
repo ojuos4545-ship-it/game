@@ -322,7 +322,8 @@ func _uid_of(species: String) -> int:
 
 
 func _test_stage5_rules() -> void:
-	print("[5단계] 배치 · 생산 · 수집")
+	print("[5단계] 배치 · 생산 · 수집 (직접 수집 방식)")
+	DataDB.balance.auto_collect = false
 	GameState.new_game()
 	check(DataDB.get_workshop_level("lumber", 1).slots == 2 and DataDB.max_workshop_level("lumber") == 3, "작업장 레벨 데이터 (Lv1 자리 2, 최고 Lv3)")
 	check(WorkshopSystem.likes("doto", "lumber") and not WorkshopSystem.likes("doto", "mine"), "도토(숲)는 벌목장을 좋아함")
@@ -363,6 +364,23 @@ func _test_stage5_rules() -> void:
 	WorkshopSystem.tick("farm")
 	check(is_equal_approx(WorkshopSystem.stored("farm"), 4.8), "소수 생산 누적 (2.4 + 2.4 = 4.8)")
 	check(WorkshopSystem.collect("farm") == 4 and is_equal_approx(WorkshopSystem.stored("farm"), 0.8), "수집은 정수만, 남은 0.8은 창고에")
+	DataDB.balance.auto_collect = true
+	GameState.new_game()
+
+	print("[5단계+] 자동 수집")
+	check(WorkshopSystem.auto_collect(), "기본 설정: 자동 수집 켜짐")
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	WorkshopSystem.tick("lumber")
+	check(GameState.get_resource("wood") == 2 and WorkshopSystem.stored("lumber") == 0.0, "생산하면 바로 내 자원으로 (목재 2)")
+	for i in 30:
+		WorkshopSystem.tick("lumber")
+	check(GameState.get_resource("wood") == 62, "창고 한도와 상관없이 계속 쌓임 (목재 62)")
+	var bear2 := GameState.add_pet("ikkigom", true)
+	WorkshopSystem.assign(bear2, "farm")
+	WorkshopSystem.tick("farm")
+	check(GameState.get_resource("berry") == 2 and is_equal_approx(WorkshopSystem.stored("farm"), 0.4), "소수 부분(0.4)은 다음 생산에 합쳐짐")
+	WorkshopSystem.tick("farm")
+	check(GameState.get_resource("berry") == 4 and is_equal_approx(WorkshopSystem.stored("farm"), 0.8), "2.4 + 2.4 = 4.8 → 열매 4, 남은 0.8")
 	GameState.new_game()
 
 
@@ -389,7 +407,8 @@ func _test_stage5_upgrade() -> void:
 
 
 func _test_stage5_screen() -> void:
-	print("[5단계] 작업장 창")
+	print("[5단계] 작업장 창 (직접 수집 방식)")
+	DataDB.balance.auto_collect = false
 	GameState.new_game()
 	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
 	add_child(main)
@@ -417,12 +436,17 @@ func _test_stage5_screen() -> void:
 	check(not up.disabled, "자원 충분하면 업그레이드 버튼 활성")
 	up.pressed.emit()
 	check(WorkshopSystem.level("lumber") == 2 and view._slots_row.get_child(2).modulate.a == 1.0, "업그레이드 → 세 번째 자리 열림")
+	check(view._storage_row.visible, "직접 수집 방식: 창고·수집 버튼 보임")
+	DataDB.balance.auto_collect = true
+	view.refresh()
+	check(not view._storage_row.visible and view._info_label.text.contains("자동 수집"), "자동 수집 방식: 창고·수집 버튼 숨김")
 	main.queue_free()
 	GameState.new_game()
 
 
 func _test_stage5_world() -> void:
 	print("[5단계] 일하는 모습 (3D)")
+	DataDB.balance.auto_collect = false
 	GameState.new_game()
 	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
 	add_child(main)
@@ -474,6 +498,11 @@ func _test_stage5_world() -> void:
 	click.pressed = true
 	area.input_event.emit(null, click, Vector3.ZERO, Vector3.UP, 0)
 	check(hud.windows.workshop.visible, "작업장 클릭 → 작업장 창 열림")
+	DataDB.balance.auto_collect = true
+	GameState.new_game()
+	check(plot.get_status_text() == "일꾼 없음 · 눌러서 배치", "자동 수집: 빈 작업장 안내 — " + plot.get_status_text())
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	check(plot.get_status_text() == "목재 +2 / 5초", "자동 수집: 작업장 위 생산 속도 — " + plot.get_status_text())
 	main.queue_free()
 	GameState.new_game()
 

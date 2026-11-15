@@ -2,5 +2,6 @@
 	"start_pets": ["doto", "mongdol", "pongdang", "haerong"],
 	"start_resources": { "wood": 0, "ore": 0, "berry": 0 },
 	"production_interval": 5.0,
-	"like_multiplier": 2.0
+	"like_multiplier": 2.0,
+	"auto_collect": true
 }
