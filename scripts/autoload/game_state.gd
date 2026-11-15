@@ -12,6 +12,12 @@ signal pet_discovered(species_id: String)
 signal workshop_changed(workshop_id: String)
 ## 작업장에서 펫 한 마리가 자원을 만들었을 때 (화면에 "+N" 표시용)
 signal produced(workshop_id: String, uid: int, amount: float)
+## 도감의 모든 펫을 처음으로 발견했을 때 (미니판 클리어)
+signal dex_completed
+## 저장 파일을 불러와 상태 전체가 바뀌었을 때
+signal state_loaded
+
+const SAVE_VERSION := 1
 
 ## 자원 id -> 수량
 var resources: Dictionary = {}
@@ -19,6 +25,8 @@ var resources: Dictionary = {}
 var pets: Array[Dictionary] = []
 ## 작업장 상태: id -> {level: 레벨(1부터), stored: 창고에 쌓인 자원(소수 가능)}
 var workshops: Dictionary = {}
+## 도감 완성 축하를 이미 보여줬는지
+var dex_celebrated := false
 ## 도감: 발견한 펫 종류 id -> true
 var discovered: Dictionary = {}
 
@@ -36,6 +44,7 @@ func new_game() -> void:
 	pets.clear()
 	discovered.clear()
 	workshops.clear()
+	dex_celebrated = false
 	_next_uid = 1
 	for id in DataDB.workshop_ids:
 		workshops[id] = {"level": 1, "stored": 0.0}
@@ -97,6 +106,9 @@ func add_pet(species: String, quiet := false) -> int:
 		discovered[species] = true
 		if not quiet:
 			pet_discovered.emit(species)
+		if discovered.size() >= DataDB.pet_ids.size() and not dex_celebrated:
+			dex_celebrated = true
+			dex_completed.emit()
 	pets_changed.emit()
 	return uid
 
@@ -118,6 +130,81 @@ func count_species(species: String) -> int:
 
 func is_discovered(species: String) -> bool:
 	return discovered.has(species)
+
+
+# ---------------- 저장용 변환 ----------------
+
+## 지금 상태를 저장 가능한 사전으로
+func to_save() -> Dictionary:
+	return {
+		"version": SAVE_VERSION,
+		"resources": resources.duplicate(),
+		"pets": pets.duplicate(true),
+		"discovered": discovered.keys(),
+		"workshops": workshops.duplicate(true),
+		"next_uid": _next_uid,
+		"dex_celebrated": dex_celebrated,
+	}
+
+
+## 저장된 사전으로 상태를 되돌린다. 데이터가 바뀌었거나 일부가 깨져 있어도 쓸 수 있는 부분만 살린다.
+## 형식이 완전히 틀리면 false (상태는 그대로).
+func load_save(d: Variant) -> bool:
+	if not (d is Dictionary and d.get("pets") is Array and d.get("resources") is Dictionary):
+		return false
+	resources.clear()
+	for id in DataDB.resource_ids:
+		resources[id] = maxi(0, int(d.resources.get(id, 0)))
+
+	workshops.clear()
+	var saved_ws: Dictionary = d.get("workshops", {}) if d.get("workshops") is Dictionary else {}
+	for id in DataDB.workshop_ids:
+		var w: Dictionary = saved_ws.get(id, {}) if saved_ws.get(id) is Dictionary else {}
+		workshops[id] = {
+			"level": clampi(int(w.get("level", 1)), 1, DataDB.max_workshop_level(id)),
+			"stored": maxf(0.0, float(w.get("stored", 0.0))),
+		}
+
+	pets.clear()
+	var used_uids := {}
+	var used_slots := {}
+	var max_uid := 0
+	for p in d.pets:
+		if not (p is Dictionary) or DataDB.get_pet(str(p.get("species", ""))).is_empty():
+			continue
+		var uid := int(p.get("uid", 0))
+		if uid <= 0 or used_uids.has(uid):
+			continue
+		used_uids[uid] = true
+		max_uid = maxi(max_uid, uid)
+		var ws := str(p.get("workshop", ""))
+		var slot := int(p.get("slot", -1))
+		var slot_key := "%s:%d" % [ws, slot]
+		var slot_ok: bool = workshops.has(ws) and slot >= 0 and slot < DataDB.get_workshop_level(ws, workshops[ws].level).slots and not used_slots.has(slot_key)
+		if not slot_ok:
+			ws = ""
+			slot = -1
+		else:
+			used_slots[slot_key] = true
+		pets.append({"uid": uid, "species": str(p.species), "workshop": ws, "slot": slot})
+
+	discovered.clear()
+	for sp in d.get("discovered", []):
+		if not DataDB.get_pet(str(sp)).is_empty():
+			discovered[str(sp)] = true
+	for p in pets:
+		discovered[p.species] = true
+
+	_next_uid = maxi(int(d.get("next_uid", 1)), max_uid + 1)
+	dex_celebrated = bool(d.get("dex_celebrated", false))
+
+	for id in resources:
+		resource_changed.emit(id, resources[id])
+	pets_changed.emit()
+	for id in workshops:
+		workshop_changed.emit(id)
+	state_loaded.emit()
+	return true
 
 
 # ---------------- 작업장 ----------------

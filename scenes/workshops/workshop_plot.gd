@@ -239,7 +239,7 @@ func _update_status() -> void:
 			_status_label.text = "%s +%s / %s초" % [res_name, Iso.fmt(rate), Iso.fmt(DataDB.balance.production_interval)]
 			_status_label.modulate = Color.WHITE
 		else:
-			_status_label.text = "일꾼 없음 · 눌러서 배치"
+			_status_label.text = "클릭해서 펫 배치"
 			_status_label.modulate = Color("ffd166")
 	elif WorkshopSystem.is_full(workshop_id):
 		_status_label.text = "%s 가득! 눌러서 수집" % res_name

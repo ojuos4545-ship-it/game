@@ -63,6 +63,19 @@ layout_mode = 2
 theme_type_variation = &"MenuButtonBig"
 text = "도감"
 
+[node name="MenuButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -110.0
+offset_top = 14.0
+offset_right = -18.0
+offset_bottom = 58.0
+grow_horizontal = 0
+text = "메뉴"
+
 [node name="Dim" type="ColorRect" parent="."]
 unique_name_in_owner = true
 visible = false
@@ -101,6 +114,24 @@ visible = false
 layout_mode = 1
 title = "작업장"
 placeholder = "작업장"
+
+[node name="MenuWindow" parent="." instance=ExtResource("3_win")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+offset_left = -260.0
+offset_top = -190.0
+offset_right = 260.0
+offset_bottom = 190.0
+title = "메뉴"
+placeholder = "메뉴"
+
+[node name="CelebrateWindow" parent="." instance=ExtResource("3_win")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+title = "도감 완성!"
+placeholder = "도감 완성"
 
 [node name="Toast" type="PanelContainer" parent="."]
 unique_name_in_owner = true

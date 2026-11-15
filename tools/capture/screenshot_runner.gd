@@ -11,6 +11,9 @@ var _gives: Array[String] = []
 
 
 func _ready() -> void:
+	# 캡처는 항상 새 게임 상태에서, 저장 없이
+	SaveManager.enabled = false
+	GameState.new_game()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out_path = arg.trim_prefix("--out=")

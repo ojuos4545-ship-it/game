@@ -29,7 +29,9 @@
 | 작업 끝 | Claude Code에게 "작업 마무리해줘" → 문서 갱신 + 커밋 + `git push` |
 | 이어받기 | `HANDOFF.md`부터 읽기 (Claude Code도 자동으로 읽음) |
 
-- 게임 **저장 파일**은 각 PC에 따로 생깁니다 (PC 간 게임 진행도는 공유되지 않음, 개발에는 영향 없음).
+- 게임 **저장 파일**은 각 PC(또는 브라우저)에 따로 생깁니다 (PC 간 게임 진행도는 공유되지 않음, 개발에는 영향 없음).
+  - Windows: `%APPDATA%\Godot\app_userdata\Little Haven\save_game.json`
+  - 웹: 브라우저 저장소 (인터넷 사용 기록·사이트 데이터를 지우면 함께 지워짐)
 
 ## 폴더 구조
 

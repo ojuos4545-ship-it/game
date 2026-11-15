@@ -7,6 +7,8 @@ const PetsView := preload("res://scenes/ui/pets_view.gd")
 const DexView := preload("res://scenes/ui/dex_view.gd")
 const CombineView := preload("res://scenes/ui/combine_view.gd")
 const WorkshopView := preload("res://scenes/ui/workshop_view.gd")
+const MenuView := preload("res://scenes/ui/menu_view.gd")
+const CelebrateView := preload("res://scenes/ui/celebrate_view.gd")
 
 ## 자원 id -> 수량 표시 Label
 var _amount_labels: Dictionary = {}
@@ -18,11 +20,14 @@ var _workshop_view: Node
 	"combine": %CombineWindow,
 	"dex": %DexWindow,
 	"workshop": %WorkshopWindow,
+	"menu": %MenuWindow,
+	"celebrate": %CelebrateWindow,
 }
 @onready var _buttons: Dictionary = {
 	"pets": %PetsButton,
 	"combine": %CombineButton,
 	"dex": %DexButton,
+	"menu": %MenuButton,
 }
 
 
@@ -37,6 +42,9 @@ func _ready() -> void:
 	GameState.resource_changed.connect(_on_resource_changed)
 	_workshop_view = WorkshopView.new()
 	windows.workshop.set_view(_workshop_view)
+	windows.menu.set_view(MenuView.new())
+	windows.celebrate.set_view(CelebrateView.new())
+	GameState.dex_completed.connect(_on_dex_completed)
 	for key in windows:
 		if _buttons.has(key):
 			_buttons[key].pressed.connect(toggle_window.bind(key))
@@ -138,6 +146,14 @@ func _build_resource_bar() -> void:
 func _on_resource_changed(id: String, amount: int) -> void:
 	if _amount_labels.has(id):
 		_amount_labels[id].text = str(amount)
+
+
+## 도감 완성: 조합 결과를 잠깐 보여준 뒤 축하 창을 띄운다
+func _on_dex_completed() -> void:
+	await get_tree().create_timer(1.5).timeout
+	close_all_windows()
+	windows.celebrate.visible = true
+	%Dim.visible = true
 
 
 func _on_pet_discovered(species: String) -> void:

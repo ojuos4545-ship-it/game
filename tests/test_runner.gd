@@ -8,6 +8,8 @@ var _failed := 0
 
 
 func _ready() -> void:
+	# 점검 중에는 실제 저장 파일을 건드리지 않는다
+	SaveManager.enabled = false
 	print("========== Little Haven 자동 점검 ==========")
 	await _run_all()
 
@@ -28,6 +30,9 @@ func _run_all() -> void:
 	_test_stage5_screen()
 	await _test_stage5_world()
 	_test_full_cycle()
+	_test_stage6_save()
+	_test_stage6_robust()
+	await _test_stage6_screen()
 	print("--------------------------------------------")
 	print("결과: 통과 %d / 실패 %d" % [_passed, _failed])
 	get_tree().quit(0 if _failed == 0 else 1)
@@ -500,7 +505,7 @@ func _test_stage5_world() -> void:
 	check(hud.windows.workshop.visible, "작업장 클릭 → 작업장 창 열림")
 	DataDB.balance.auto_collect = true
 	GameState.new_game()
-	check(plot.get_status_text() == "일꾼 없음 · 눌러서 배치", "자동 수집: 빈 작업장 안내 — " + plot.get_status_text())
+	check(plot.get_status_text() == "클릭해서 펫 배치", "자동 수집: 빈 작업장 안내 — " + plot.get_status_text())
 	WorkshopSystem.assign(_uid_of("doto"), "lumber")
 	check(plot.get_status_text() == "목재 +2 / 5초", "자동 수집: 작업장 위 생산 속도 — " + plot.get_status_text())
 	main.queue_free()
@@ -538,4 +543,125 @@ func _test_full_cycle() -> void:
 			print("    조합 실패: ", g, " ", r.message)
 	var minutes: float = ticks[0] * DataDB.balance.production_interval / 60.0
 	check(ok and GameState.discovered.size() == 8, "도감 8종 완성 (생산 %d회, 약 %.1f분)" % [ticks[0], minutes])
+	GameState.new_game()
+
+
+# ---------- 6단계: 저장 · 불러오기 ----------
+const TEST_SAVE := "user://test_save.json"
+
+
+func _test_stage6_save() -> void:
+	print("[6단계] 저장 · 불러오기")
+	var old_path := SaveManager.save_path
+	SaveManager.save_path = TEST_SAVE
+	SaveManager.enabled = false
+	check(not SaveManager.save_game(), "저장 꺼짐 상태에서는 저장 안 함")
+	SaveManager.enabled = true
+
+	GameState.new_game()
+	GameState.add_resource("wood", 40)
+	GameState.add_resource("ore", 40)
+	GameState.add_resource("berry", 60)
+	CombineSystem.combine("doto", "pongdang")
+	AdoptionSystem.adopt("haerong")
+	WorkshopSystem.upgrade("mine")
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	WorkshopSystem.assign(_uid_of("ikkigom"), "farm")
+	WorkshopSystem.assign(_uid_of("mongdol"), "mine")
+	var before := GameState.to_save()
+	check(SaveManager.save_game() and SaveManager.has_save(), "저장 파일 만들어짐")
+
+	GameState.new_game()
+	check(GameState.pets.size() == 4 and GameState.get_resource("wood") == 0, "새 게임으로 바뀐 상태 (확인용)")
+	check(SaveManager.load_game(), "저장 파일 불러오기")
+	var after := GameState.to_save()
+	check(JSON.stringify(after) == JSON.stringify(before), "불러온 상태가 저장 전과 똑같음")
+	check(GameState.pets.size() == 6 and GameState.is_discovered("ikkigom"), "보유 펫 6마리 + 도감(이끼곰) 복구")
+	check(WorkshopSystem.level("mine") == 2 and GameState.get_pet(_uid_of("ikkigom")).workshop == "farm", "작업장 레벨·배치 복구")
+	var uid := GameState.add_pet("doto", true)
+	check(uid == before.next_uid, "다음 펫 번호도 이어서 (중복 번호 없음)")
+
+	# 자동 저장: 변화가 있으면 몇 초 뒤 저장
+	SaveManager.delete_save()
+	GameState.add_resource("wood", 1)
+	SaveManager._process(SaveManager.AUTOSAVE_INTERVAL + 0.1)
+	check(SaveManager.has_save() and not SaveManager.last_saved_time.is_empty(), "자동 저장 (변화 후 %d초)" % int(SaveManager.AUTOSAVE_INTERVAL))
+
+	SaveManager.delete_save()
+	SaveManager.save_path = old_path
+	SaveManager.enabled = false
+	GameState.new_game()
+
+
+func _test_stage6_robust() -> void:
+	print("[6단계] 깨진 저장 파일 대비")
+	GameState.new_game()
+	check(not GameState.load_save("이상한 값") and GameState.pets.size() == 4, "형식이 틀린 저장 → 무시, 상태 유지")
+	check(not GameState.load_save({"pets": "x"}), "펫 목록이 깨진 저장 → 무시")
+	var weird := {
+		"resources": {"wood": 5, "ore": -3, "gold": 99},
+		"pets": [
+			{"uid": 1, "species": "doto", "workshop": "lumber", "slot": 0},
+			{"uid": 2, "species": "없는펫", "workshop": "", "slot": -1},
+			{"uid": 3, "species": "mongdol", "workshop": "lumber", "slot": 0},
+			{"uid": 3, "species": "haerong", "workshop": "", "slot": -1},
+			{"uid": 4, "species": "pongdang", "workshop": "mine", "slot": 3},
+		],
+		"discovered": ["doto", "없는펫"],
+		"workshops": {"lumber": {"level": 99, "stored": -5}},
+		"next_uid": 2,
+	}
+	check(GameState.load_save(weird), "일부가 이상한 저장도 불러옴")
+	check(GameState.get_resource("wood") == 5 and GameState.get_resource("ore") == 0, "자원: 음수는 0으로, 모르는 자원은 무시")
+	check(GameState.pets.size() == 3, "없는 펫 종류·중복 번호는 빼고 3마리")
+	check(GameState.get_pet(3).workshop == "", "같은 자리에 겹친 펫은 쉬게 함")
+	check(GameState.get_pet(4).workshop == "", "열리지 않은 자리(광산 Lv1의 4번째)에 있던 펫은 쉬게 함")
+	check(WorkshopSystem.level("lumber") == 3 and WorkshopSystem.stored("lumber") == 0.0, "레벨은 최고 레벨까지, 창고는 0 이상")
+	check(GameState.is_discovered("mongdol") and not GameState.discovered.has("없는펫"), "보유 펫은 도감에 등록, 없는 펫은 제외")
+	check(GameState.add_pet("doto", true) == 5, "다음 펫 번호는 가장 큰 번호 다음부터")
+	GameState.new_game()
+
+	print("[6단계] 도감 완성")
+	var fired := [0]
+	var on_done := func(): fired[0] += 1
+	GameState.dex_completed.connect(on_done)
+	for id in DataDB.pet_ids:
+		GameState.add_pet(id)
+	GameState.add_pet("rumi")
+	check(fired[0] == 1 and GameState.dex_celebrated, "8종을 처음 다 모으면 축하 한 번만")
+	var saved := GameState.to_save()
+	GameState.new_game()
+	GameState.load_save(saved)
+	GameState.add_pet("rumi")
+	check(fired[0] == 1, "불러온 뒤에는 다시 축하하지 않음")
+	GameState.dex_completed.disconnect(on_done)
+	GameState.new_game()
+
+
+func _test_stage6_screen() -> void:
+	print("[6단계] 메뉴 · 새 게임 · 축하 화면")
+	GameState.new_game()
+	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
+	add_child(main)
+	var hud: Node = main.find_child("HUD", true, false)
+	hud.find_child("MenuButton", true, false).pressed.emit()
+	check(hud.windows.menu.visible, "메뉴 버튼 → 메뉴 창")
+	var confirm_row: Control = hud.find_child("ConfirmNewGameButton", true, false).get_parent()
+	check(not confirm_row.visible, "처음에는 확인 질문 숨김")
+	GameState.add_resource("wood", 50)
+	hud.find_child("NewGameButton", true, false).pressed.emit()
+	check(confirm_row.visible, "새 게임 버튼 → 한 번 더 확인")
+	hud.find_child("CancelNewGameButton", true, false).pressed.emit()
+	check(GameState.get_resource("wood") == 50 and not confirm_row.visible, "취소하면 그대로")
+	hud.find_child("NewGameButton", true, false).pressed.emit()
+	hud.find_child("ConfirmNewGameButton", true, false).pressed.emit()
+	check(GameState.get_resource("wood") == 0 and GameState.pets.size() == 4 and not hud.is_any_window_open(), "처음부터 시작 → 새 게임, 창 닫힘")
+
+	for id in DataDB.pet_ids:
+		GameState.add_pet(id)
+	await get_tree().create_timer(1.7).timeout
+	check(hud.windows.celebrate.visible, "도감 완성 → 축하 창")
+	hud.find_child("CelebrateOkButton", true, false).pressed.emit()
+	check(not hud.is_any_window_open(), "계속하기 → 창 닫힘")
+	main.queue_free()
 	GameState.new_game()
