@@ -6,7 +6,7 @@ config_version=5
 
 config/name="Little Haven"
 config/description="펫 수집 + 조합 + 작업장 경영 시뮬레이션 (미니판)"
-config/version="0.1.0"
+config/version="0.2.0"
 run/main_scene="res://scenes/main/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

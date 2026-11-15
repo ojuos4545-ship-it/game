@@ -1,0 +1,7 @@
+{
+	"resources": [
+		{ "id": "wood", "name": "목재", "color": "#b5793f" },
+		{ "id": "ore", "name": "광석", "color": "#7f9bb8" },
+		{ "id": "berry", "name": "열매", "color": "#e0566b" }
+	]
+}

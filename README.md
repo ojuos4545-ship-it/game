@@ -37,8 +37,9 @@ game/  (이 저장소)
 │  └─ ui/                 버튼, 창, 도감 등 화면 UI
 ├─ scripts/
 │  ├─ autoload/           항상 켜져 있는 관리자 (DataDB, GameState, SaveManager)
-│  └─ systems/            게임 규칙 (조합, 생산 등) — 화면과 분리된 순수 로직
-├─ assets/                폰트, 3D 모델, 이미지, 소리
+│  ├─ systems/            게임 규칙 (조합, 생산 등) — 화면과 분리된 순수 로직
+│  └─ visual/             임시 3D 도형 도우미
+├─ assets/                폰트, UI 테마, 3D 모델, 이미지, 소리
 ├─ tests/                 자동 점검 (Claude Code가 매 작업 후 실행)
 ├─ tools/                 점검·화면 캡처 도구
 └─ docs/                  스크린샷 등 참고 자료

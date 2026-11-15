@@ -1,60 +1,14 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/main/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/world/world.tscn" id="2_world"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3_hud"]
 
-[sub_resource type="BoxMesh" id="BoxMesh_cube"]
-
-[sub_resource type="StandardMaterial3D" id="Mat_cube"]
-albedo_color = Color(1, 0.72, 0.3, 1)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(8, 8)
-
-[sub_resource type="StandardMaterial3D" id="Mat_ground"]
-albedo_color = Color(0.5, 0.78, 0.42, 1)
-
-[sub_resource type="ProceduralSkyMaterial" id="Sky_mat"]
-
-[sub_resource type="Sky" id="Sky_1"]
-sky_material = SubResource("Sky_mat")
-
-[sub_resource type="Environment" id="Env_1"]
-background_mode = 2
-sky = SubResource("Sky_1")
-ambient_light_source = 3
-
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node"]
 script = ExtResource("1_main")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Env_1")
-
-[node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866, -0.433, 0.25, 0, 0.5, 0.866, -0.5, -0.75, 0.433, 0, 5, 0)
-shadow_enabled = true
-
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 6, 6)
-projection = 1
-size = 7.0
-
-[node name="Ground" type="MeshInstance3D" parent="."]
-mesh = SubResource("PlaneMesh_ground")
-surface_material_override/0 = SubResource("Mat_ground")
-
-[node name="TestCube" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-mesh = SubResource("BoxMesh_cube")
-surface_material_override/0 = SubResource("Mat_cube")
+[node name="World" parent="." instance=ExtResource("2_world")]
 
 [node name="UI" type="CanvasLayer" parent="."]
 
-[node name="Title" type="Label" parent="UI"]
-offset_left = 24.0
-offset_top = 20.0
-offset_right = 800.0
-offset_bottom = 120.0
-theme_override_colors/font_color = Color(0.2, 0.15, 0.1, 1)
-theme_override_font_sizes/font_size = 32
-text = "Little Haven - 실행 테스트 성공!
-1단계: 프로젝트 기본 구성 완료"
+[node name="HUD" parent="UI" instance=ExtResource("3_hud")]

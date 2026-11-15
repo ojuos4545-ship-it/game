@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/world.gd" id="1_world"]
+[ext_resource type="PackedScene" path="res://scenes/workshops/workshop_plot.tscn" id="2_plot"]
+
+[sub_resource type="ProceduralSkyMaterial" id="Sky_mat"]
+sky_top_color = Color(0.45, 0.68, 0.92, 1)
+sky_horizon_color = Color(0.82, 0.9, 0.96, 1)
+ground_horizon_color = Color(0.82, 0.9, 0.96, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("Sky_mat")
+
+[sub_resource type="Environment" id="Env_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 2
+ambient_light_color = Color(0.78, 0.82, 0.92, 1)
+ambient_light_energy = 0.45
+
+[node name="World" type="Node3D"]
+script = ExtResource("1_world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, 12, 0)
+light_energy = 0.65
+light_color = Color(1, 0.97, 0.9, 1)
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(17.58, 17.22, 17.58)
+rotation_degrees = Vector3(-35, 45, 0)
+projection = 1
+size = 12.5
+far = 100.0
+
+[node name="Plots" type="Node3D" parent="."]
+
+[node name="Lumber" parent="Plots" instance=ExtResource("2_plot")]
+position = Vector3(-3.536, 0, 5.657)
+workshop_id = "lumber"
+
+[node name="Mine" parent="Plots" instance=ExtResource("2_plot")]
+position = Vector3(-2.121, 0, -2.121)
+workshop_id = "mine"
+
+[node name="Farm" parent="Plots" instance=ExtResource("2_plot")]
+position = Vector3(5.657, 0, -3.536)
+workshop_id = "farm"
