@@ -86,8 +86,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 1
 title = "펫 조합"
-placeholder = "펫 두 마리를 골라 새로운 펫을 만듭니다.
-(4단계: 조합 시스템에서 구현)"
+placeholder = "펫 조합"
 
 [node name="DexWindow" parent="." instance=ExtResource("3_win")]
 unique_name_in_owner = true

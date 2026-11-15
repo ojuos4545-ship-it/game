@@ -5,6 +5,7 @@ extends Control
 
 const PetsView := preload("res://scenes/ui/pets_view.gd")
 const DexView := preload("res://scenes/ui/dex_view.gd")
+const CombineView := preload("res://scenes/ui/combine_view.gd")
 
 ## 자원 id -> 수량 표시 Label
 var _amount_labels: Dictionary = {}
@@ -27,6 +28,7 @@ func _ready() -> void:
 	_build_resource_bar()
 	windows.pets.set_view(PetsView.new())
 	windows.dex.set_view(DexView.new())
+	windows.combine.set_view(CombineView.new())
 	GameState.pet_discovered.connect(_on_pet_discovered)
 	%Toast.visible = false
 	GameState.resource_changed.connect(_on_resource_changed)

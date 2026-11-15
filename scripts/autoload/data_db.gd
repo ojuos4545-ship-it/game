@@ -17,6 +17,11 @@ var element_ids: Array[String] = []
 ## 펫 종류: id -> {id, name, elements, power, obtain, adopt_cost, look, color, accent, description}
 var pets: Dictionary = {}
 var pet_ids: Array[String] = []
+## 조합표: id -> {id, parents: [펫 id, 펫 id], result: 펫 id, cost: {자원: 수량}}
+var recipes: Dictionary = {}
+var recipe_ids: Array[String] = []
+## 조합 찾기용: "펫A+펫B"(이름순 정렬) -> 조합표 id
+var _recipe_by_pair: Dictionary = {}
 ## 기본 수치 (시작 펫, 시작 자원 등)
 var balance: Dictionary = {}
 ## 데이터 검사에서 발견된 문제 목록 (비어 있으면 정상)
@@ -29,7 +34,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	if errors.is_empty():
-		print("[DataDB] 데이터 로드 완료: 자원 %d, 작업장 %d, 속성 %d, 펫 %d" % [resource_ids.size(), workshop_ids.size(), element_ids.size(), pet_ids.size()])
+		print("[DataDB] 데이터 로드 완료: 자원 %d, 작업장 %d, 속성 %d, 펫 %d, 조합 %d" % [resource_ids.size(), workshop_ids.size(), element_ids.size(), pet_ids.size(), recipe_ids.size()])
 	else:
 		for e in errors:
 			push_error("[DataDB] " + e)
@@ -49,6 +54,24 @@ func get_element(id: String) -> Dictionary:
 
 func get_pet(id: String) -> Dictionary:
 	return pets.get(id, {})
+
+
+## 두 펫 종류로 만들 수 있는 조합표를 찾는다 (순서 상관없음). 없으면 빈 사전.
+func find_recipe(species_a: String, species_b: String) -> Dictionary:
+	var id: String = _recipe_by_pair.get(_pair_key(species_a, species_b), "")
+	return recipes.get(id, {})
+
+
+## 이 펫 종류를 결과로 만드는 조합표 (없으면 빈 사전)
+func recipe_for_result(species: String) -> Dictionary:
+	for id in recipe_ids:
+		if recipes[id].result == species:
+			return recipes[id]
+	return {}
+
+
+func _pair_key(a: String, b: String) -> String:
+	return a + "+" + b if a <= b else b + "+" + a
 
 
 ## 펫 속성 이름을 "숲·물" 형태로
@@ -76,6 +99,7 @@ func _load_all() -> void:
 	_load_list("workshops.json", "workshops", workshops, workshop_ids, ["name", "resource", "plot_color"])
 	_load_list("elements.json", "elements", elements, element_ids, ["name", "color"])
 	_load_list("pets.json", "pets", pets, pet_ids, ["name", "elements", "power", "obtain", "look", "color", "accent", "description"])
+	_load_list("recipes.json", "recipes", recipes, recipe_ids, ["parents", "result", "cost"])
 	var parsed_balance: Variant = load_json("balance.json")
 	balance = parsed_balance if parsed_balance is Dictionary else {}
 	for id in resources:
@@ -83,6 +107,7 @@ func _load_all() -> void:
 	for id in elements:
 		elements[id].color = Color.html(elements[id].color)
 	_check_pets()
+	_check_recipes()
 	_check_balance()
 	for id in workshops:
 		var w: Dictionary = workshops[id]
@@ -108,6 +133,32 @@ func _check_pets() -> void:
 		# JSON 숫자는 소수로 읽히므로 비용은 정수로 맞춘다
 		if p.has("adopt_cost"):
 			p.adopt_cost = _int_cost(p.adopt_cost)
+
+
+func _check_recipes() -> void:
+	_recipe_by_pair.clear()
+	for id in recipe_ids:
+		var r: Dictionary = recipes[id]
+		if not (r.parents is Array and r.parents.size() == 2):
+			errors.append("조합 '%s': parents는 펫 2마리여야 함" % id)
+			continue
+		for p in r.parents:
+			if not pets.has(p):
+				errors.append("조합 '%s': 없는 재료 펫 '%s'" % [id, p])
+		if not pets.has(r.result):
+			errors.append("조합 '%s': 없는 결과 펫 '%s'" % [id, r.result])
+		elif pets[r.result].obtain != "combine":
+			errors.append("조합 '%s': 결과 펫 '%s'의 obtain이 combine이 아님" % [id, r.result])
+		_check_cost(r.cost, "조합 '%s'의 cost" % id)
+		r.cost = _int_cost(r.cost)
+		var key := _pair_key(r.parents[0], r.parents[1])
+		if _recipe_by_pair.has(key):
+			errors.append("조합 '%s': 같은 재료 조합이 이미 있음 (%s)" % [id, key])
+		_recipe_by_pair[key] = id
+	# 조합 펫은 모두 조합표로 얻을 수 있어야 한다
+	for pid in pet_ids:
+		if pets[pid].obtain == "combine" and recipe_for_result(pid).is_empty():
+			errors.append("조합 펫 '%s'을(를) 만드는 조합표가 없음" % pid)
 
 
 func _check_balance() -> void:

@@ -16,6 +16,9 @@ func _ready() -> void:
 	_test_stage3_adoption()
 	_test_stage3_visuals()
 	_test_stage3_screen()
+	_test_stage4_recipes()
+	_test_stage4_combine()
+	_test_stage4_screen()
 	print("--------------------------------------------")
 	print("결과: 통과 %d / 실패 %d" % [_passed, _failed])
 	get_tree().quit(0 if _failed == 0 else 1)
@@ -205,3 +208,97 @@ func _test_stage3_screen() -> void:
 		check(hud.get_toast_text().begins_with("새로운 펫 발견! 이끼곰"), "새 펫 발견 알림 표시")
 	main.queue_free()
 	GameState.new_game()
+
+
+# ---------- 4단계: 조합 ----------
+func _test_stage4_recipes() -> void:
+	print("[4단계] 조합표")
+	check(DataDB.recipe_ids.size() == 4, "조합표 4개")
+	check(DataDB.find_recipe("doto", "pongdang").get("result") == "ikkigom", "도토 + 퐁당 = 이끼곰")
+	check(DataDB.find_recipe("pongdang", "doto").get("result") == "ikkigom", "순서 바꿔도 같은 결과")
+	check(DataDB.find_recipe("mongdol", "haerong").get("result") == "bandi", "몽돌 + 해롱 = 반디")
+	check(DataDB.find_recipe("doto", "mongdol").get("result") == "beodi", "도토 + 몽돌 = 버디")
+	check(DataDB.find_recipe("ikkigom", "bandi").get("result") == "rumi", "이끼곰 + 반디 = 루미 (2차 조합)")
+	check(DataDB.find_recipe("pongdang", "haerong").is_empty(), "퐁당 + 해롱 = 조합표에 없음")
+
+
+func _test_stage4_combine() -> void:
+	print("[4단계] 조합 규칙")
+	GameState.new_game()
+	var r := CombineSystem.combine("doto", "pongdang")
+	check(not r.ok and GameState.count_species("ikkigom") == 0, "자원 부족: 조합 안 됨 (" + r.message + ")")
+
+	GameState.add_resource("wood", 50)
+	GameState.add_resource("ore", 50)
+	GameState.add_resource("berry", 50)
+	r = CombineSystem.combine("pongdang", "haerong")
+	check(not r.ok and GameState.get_resource("berry") == 50, "조합표에 없는 조합: 자원 그대로 (" + r.message + ")")
+	r = CombineSystem.combine("ikkigom", "bandi")
+	check(not r.ok, "보유하지 않은 펫으로는 조합 불가")
+	r = CombineSystem.combine("doto", "doto")
+	check(not r.ok, "같은 펫 두 마리는 2마리 이상 있어야 함")
+
+	r = CombineSystem.combine("doto", "pongdang")
+	check(r.ok and r.result == "ikkigom" and r.new_discovery, "조합 성공: 이끼곰 (" + r.message + ")")
+	check(GameState.get_resource("wood") == 40 and GameState.get_resource("berry") == 40, "조합 비용 차감 (목재 10, 열매 10)")
+	check(GameState.count_species("doto") == 1 and GameState.count_species("pongdang") == 1, "재료 펫은 사라지지 않음")
+	check(GameState.is_discovered("ikkigom"), "도감 등록")
+	r = CombineSystem.combine("doto", "pongdang")
+	check(r.ok and not r.new_discovery and GameState.count_species("ikkigom") == 2, "다시 조합하면 한 마리 더 (" + r.message + ")")
+
+	r = CombineSystem.combine("mongdol", "haerong")
+	check(r.ok and r.result == "bandi", "반디 조합")
+	r = CombineSystem.combine("ikkigom", "bandi")
+	check(not r.ok, "루미: 자원 부족 시 불가 (30씩 필요)")
+	GameState.add_resource("wood", 30)
+	GameState.add_resource("ore", 30)
+	GameState.add_resource("berry", 30)
+	r = CombineSystem.combine("bandi", "ikkigom")
+	check(r.ok and r.result == "rumi", "조합으로 얻은 펫끼리 2차 조합 → 루미")
+	r = CombineSystem.combine("doto", "mongdol")
+	check(r.ok and r.result == "beodi", "버디 조합")
+	check(GameState.discovered.size() == 8, "도감 8종 모두 발견 가능")
+	GameState.new_game()
+
+
+func _test_stage4_screen() -> void:
+	print("[4단계] 조합 창")
+	GameState.new_game()
+	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
+	add_child(main)
+	var hud: Node = main.find_child("HUD", true, false)
+	var view: Node = hud.find_child("CombineView", true, false)
+	check(view != null, "조합 창 내용 연결됨")
+	if view:
+		var go: Button = view.find_child("CombineGoButton", true, false)
+		check(view._picker.get_child_count() == 4, "보유 펫 4종 선택 버튼")
+		check(go.disabled, "재료 없으면 조합 버튼 비활성")
+		view.find_child("Pick_doto", true, false).pressed.emit()
+		view.find_child("Pick_pongdang", true, false).pressed.emit()
+		check(view.selected == ["doto", "pongdang"], "펫 누르면 재료 칸에 들어감")
+		check(view._result_box.find_child("*", true, false) != null and _texts(view._result_box).has("???"), "결과 미리보기: 미발견 펫은 ???")
+		check(go.disabled and view._info_label.text.contains("부족"), "자원 부족 안내 + 버튼 비활성")
+		GameState.add_resource("wood", 10)
+		GameState.add_resource("berry", 10)
+		check(not go.disabled, "자원 충분하면 조합 버튼 활성")
+		go.pressed.emit()
+		check(_texts(view._result_box).has("이끼곰"), "조합 후 결과 칸에 이끼곰 표시")
+		check(hud.get_toast_text() == "새로운 펫 이끼곰을 발견했어요!", "조합 결과 알림: " + hud.get_toast_text())
+		check(view.find_child("Pick_ikkigom", true, false) != null, "새 펫이 선택 목록에 추가됨")
+		check(view.selected == ["doto", "pongdang"], "재료 칸 유지 (재료 펫 그대로)")
+		view.find_child("Slot1", true, false).pressed.emit()
+		check(view.selected == ["doto", ""], "재료 칸 누르면 비워짐")
+		view.find_child("Pick_haerong", true, false).pressed.emit()
+		view.find_child("Slot0", true, false).pressed.emit()
+		view.find_child("Pick_pongdang", true, false).pressed.emit()
+		check(view._info_label.text.contains("아무 일도"), "없는 조합 안내: " + view._info_label.text)
+	main.queue_free()
+	GameState.new_game()
+
+
+## 노드 아래 모든 Label 글자 모으기
+func _texts(node: Node) -> Array:
+	var out: Array = []
+	for n in node.find_children("*", "Label", true, false):
+		out.append(n.text)
+	return out

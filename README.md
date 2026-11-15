@@ -48,7 +48,8 @@ game/  (이 저장소)
 
 ## 브랜치 안내
 
-- 최신 작업은 `claude/little-haven-godot` 브랜치에 있습니다. (`main`은 2단계 이전 상태일 수 있음)
+- `main`: 단계가 완료된 안정 버전 (다른 PC에서는 이것을 받으면 됨)
+- `claude/little-haven-godot`: 진행 중인 작업
 
 ## 개발용 명령 (Claude Code가 사용)
 
