@@ -38,12 +38,17 @@ game/  (이 저장소)
 ├─ scripts/
 │  ├─ autoload/           항상 켜져 있는 관리자 (DataDB, GameState, SaveManager)
 │  ├─ systems/            게임 규칙 (조합, 생산 등) — 화면과 분리된 순수 로직
-│  └─ visual/             임시 3D 도형 도우미
+│  ├─ visual/             임시 3D 도형 도우미
+│  └─ util/               공용 도우미 (한국어 조사 등)
 ├─ assets/                폰트, UI 테마, 3D 모델, 이미지, 소리
 ├─ tests/                 자동 점검 (Claude Code가 매 작업 후 실행)
 ├─ tools/                 점검·화면 캡처 도구
 └─ docs/                  스크린샷 등 참고 자료
 ```
+
+## 브랜치 안내
+
+- 최신 작업은 `claude/little-haven-godot` 브랜치에 있습니다. (`main`은 2단계 이전 상태일 수 있음)
 
 ## 개발용 명령 (Claude Code가 사용)
 

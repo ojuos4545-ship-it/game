@@ -51,3 +51,12 @@ static func sphere(radius: float, color: Color, pos := Vector3.ZERO) -> MeshInst
 	mesh.radial_segments = 16
 	mesh.rings = 8
 	return _make(mesh, color, pos)
+
+
+## 스스로 빛나는 재질로 바꾼다 (반디 이마 등)
+static func make_glow(mi: MeshInstance3D, color: Color, strength := 1.5) -> MeshInstance3D:
+	var m: StandardMaterial3D = mi.material_override
+	m.emission_enabled = true
+	m.emission = color
+	m.emission_energy_multiplier = strength
+	return mi

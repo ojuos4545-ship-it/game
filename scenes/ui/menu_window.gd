@@ -26,3 +26,10 @@ func _ready() -> void:
 ## 각 단계에서 실제 내용을 넣을 영역
 func get_content() -> VBoxContainer:
 	return %Content
+
+
+## 내용 화면을 넣는다 (안내 문구는 숨김)
+func set_view(view: Control) -> void:
+	%Placeholder.visible = false
+	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	%Content.add_child(view)

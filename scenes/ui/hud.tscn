@@ -79,8 +79,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 1
 title = "내 펫"
-placeholder = "보유한 펫 목록이 여기에 표시됩니다.
-(3단계: 펫 시스템에서 구현)"
+placeholder = "보유한 펫 목록"
 
 [node name="CombineWindow" parent="." instance=ExtResource("3_win")]
 unique_name_in_owner = true
@@ -95,5 +94,23 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 1
 title = "펫 도감"
-placeholder = "발견한 펫이 8칸에 기록됩니다.
-(3단계: 펫 시스템에서 구현)"
+placeholder = "펫 도감"
+
+[node name="Toast" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_top = 62.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_type_variation = &"ToastPanel"
+
+[node name="ToastLabel" type="Label" parent="Toast"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.97, 0.89, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1

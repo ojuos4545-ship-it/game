@@ -1,0 +1,4 @@
+{
+	"start_pets": ["doto", "mongdol", "pongdang", "haerong"],
+	"start_resources": { "wood": 0, "ore": 0, "berry": 0 }
+}

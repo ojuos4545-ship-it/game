@@ -12,6 +12,10 @@ func _ready() -> void:
 	_test_stage1_project()
 	_test_stage2_data()
 	_test_stage2_screen()
+	_test_stage3_pets()
+	_test_stage3_adoption()
+	_test_stage3_visuals()
+	_test_stage3_screen()
 	print("--------------------------------------------")
 	print("결과: 통과 %d / 실패 %d" % [_passed, _failed])
 	get_tree().quit(0 if _failed == 0 else 1)
@@ -57,13 +61,13 @@ func _test_stage2_data() -> void:
 	check(DataDB.workshop_ids == ["lumber", "mine", "farm"], "작업장 3종 (벌목장·광산·농장)")
 	check(DataDB.get_workshop("mine").get("name") == "광산", "작업장 이름 읽기")
 
-	GameState.reset()
+	GameState.new_game()
 	check(GameState.get_resource("wood") == 0, "시작 자원 0")
 	GameState.add_resource("wood", 5)
 	check(GameState.get_resource("wood") == 5, "자원 더하기")
 	GameState.add_resource("wood", -10)
 	check(GameState.get_resource("wood") == 0, "자원은 0 아래로 내려가지 않음")
-	GameState.reset()
+	GameState.new_game()
 
 
 # ---------- 2단계: 기본 게임 화면 ----------
@@ -102,4 +106,102 @@ func _test_stage2_screen() -> void:
 		check(not hud.is_any_window_open(), "닫기 버튼 → 창 닫힘")
 
 	main.queue_free()
-	GameState.reset()
+	GameState.new_game()
+
+
+# ---------- 3단계: 펫 데이터 · 보유 · 도감 ----------
+func _test_stage3_pets() -> void:
+	print("[3단계] 펫 데이터와 보유")
+	check(DataDB.pet_ids.size() == 8, "펫 8종")
+	var base := DataDB.pet_ids.filter(func(id): return DataDB.get_pet(id).obtain == "base")
+	check(base == ["doto", "mongdol", "pongdang", "haerong"], "기본 펫 4종 %s" % [base])
+	check(DataDB.element_ids.size() == 4, "속성 4종")
+	check(DataDB.pet_elements_text("ikkigom") == "숲·물", "속성 이름 표시 (이끼곰 = 숲·물)")
+	check(Korean.obj("도토") == "도토를" and Korean.obj("이끼곰") == "이끼곰을", "조사 붙이기 (를/을)")
+
+	GameState.new_game()
+	check(GameState.pets.size() == 4, "새 게임: 기본 펫 4마리 보유")
+	check(GameState.discovered.size() == 4 and GameState.is_discovered("doto"), "새 게임: 기본 4종 도감 등록")
+	check(not GameState.is_discovered("rumi"), "새 게임: 루미는 미발견")
+
+	var found: Array = []
+	var on_found := func(sp): found.append(sp)
+	GameState.pet_discovered.connect(on_found)
+	GameState.add_pet("doto")
+	GameState.add_pet("ikkigom")
+	GameState.add_pet("ikkigom")
+	GameState.pet_discovered.disconnect(on_found)
+	check(found == ["ikkigom"], "새 종류일 때만 '발견' 알림 %s" % [found])
+	check(GameState.count_species("ikkigom") == 2 and GameState.pets.size() == 7, "같은 종류 여러 마리 보유")
+	var uids := {}
+	for p in GameState.pets:
+		uids[p.uid] = true
+	check(uids.size() == 7, "펫마다 고유번호가 다름")
+	GameState.new_game()
+
+
+func _test_stage3_adoption() -> void:
+	print("[3단계] 입양")
+	GameState.new_game()
+	check(not AdoptionSystem.check("doto").is_empty(), "열매 0개: 입양 불가")
+	var r := AdoptionSystem.adopt("doto")
+	check(not r.ok and GameState.pets.size() == 4, "입양 실패 시 펫·자원 변화 없음")
+	GameState.add_resource("berry", 20)
+	r = AdoptionSystem.adopt("doto")
+	check(r.ok and r.message == "도토를 입양했어요!", "입양 성공 메시지: " + r.message)
+	check(GameState.get_resource("berry") == 5, "입양 비용 차감 (20 - 15 = 5)")
+	check(GameState.count_species("doto") == 2 and GameState.pets.size() == 5, "도토 한 마리 추가")
+	GameState.add_resource("berry", 100)
+	r = AdoptionSystem.adopt("ikkigom")
+	check(not r.ok and GameState.count_species("ikkigom") == 0, "조합 펫은 입양 불가: " + r.message)
+	GameState.new_game()
+
+
+func _test_stage3_visuals() -> void:
+	print("[3단계] 펫 3D 모형")
+	var all_ok := true
+	var sizes: Array = []
+	for id in DataDB.pet_ids:
+		var v := PetVisual.new()
+		add_child(v)
+		v.setup(id)
+		sizes.append(v.model.get_child_count())
+		if v.model.get_child_count() < 6:
+			all_ok = false
+		v.free()
+	check(all_ok, "8종 모두 도형 조합으로 생성됨 (부품 수 %s)" % [sizes])
+	var tex_ok := true
+	for id in DataDB.pet_ids:
+		if not PetPortraits.get_texture(id) is Texture2D:
+			tex_ok = false
+	check(tex_ok, "8종 초상화 그림 생성됨")
+
+
+func _test_stage3_screen() -> void:
+	print("[3단계] 펫 창 · 도감 창")
+	GameState.new_game()
+	var main: Node = load(ProjectSettings.get_setting("application/run/main_scene")).instantiate()
+	add_child(main)
+	var hud: Node = main.find_child("HUD", true, false)
+	var pets_view: Node = hud.find_child("PetsView", true, false)
+	var dex_view: Node = hud.find_child("DexView", true, false)
+	check(pets_view != null and dex_view != null, "펫 창·도감 창 내용 연결됨")
+	if pets_view and dex_view:
+		check(pets_view._count_label.text == "보유 펫 4마리" and pets_view._grid.get_child_count() == 4, "펫 창: 보유 펫 4마리 카드")
+		var adopt_btn: Button = pets_view.find_child("Adopt_doto", true, false)
+		check(adopt_btn != null and adopt_btn.disabled, "열매 부족 시 입양 버튼 비활성")
+		GameState.add_resource("berry", 15)
+		adopt_btn = pets_view.find_child("Adopt_doto", true, false)
+		check(adopt_btn != null and not adopt_btn.disabled, "열매 충분하면 입양 버튼 활성")
+		adopt_btn.pressed.emit()
+		check(pets_view._grid.get_child_count() == 5, "입양 버튼 → 카드 5장으로 갱신")
+		check(hud.get_toast_text() == "도토를 입양했어요!", "입양 알림 메시지 표시")
+
+		check(dex_view._count_label.text == "발견한 펫 4 / 8", "도감: 발견 4 / 8")
+		var bear_card: Node = dex_view.find_child("Dex_ikkigom", true, false)
+		check(bear_card != null and bear_card.find_child("*", true, false) != null, "도감: 미발견 칸 존재")
+		GameState.add_pet("ikkigom")
+		check(dex_view._count_label.text == "발견한 펫 5 / 8", "새 펫 획득 → 도감 5 / 8")
+		check(hud.get_toast_text().begins_with("새로운 펫 발견! 이끼곰"), "새 펫 발견 알림 표시")
+	main.queue_free()
+	GameState.new_game()

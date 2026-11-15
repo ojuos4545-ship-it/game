@@ -1,0 +1,8 @@
+{
+	"elements": [
+		{ "id": "forest", "name": "숲", "color": "#4f9e4a" },
+		{ "id": "stone", "name": "바위", "color": "#8d8a84" },
+		{ "id": "water", "name": "물", "color": "#3fa7e0" },
+		{ "id": "sun", "name": "햇살", "color": "#f2a417" }
+	]
+}

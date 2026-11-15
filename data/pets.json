@@ -1,0 +1,52 @@
+{
+	"pets": [
+		{
+			"id": "doto", "name": "도토", "elements": ["forest"], "power": 1.0,
+			"obtain": "base", "adopt_cost": { "berry": 15 },
+			"look": "squirrel", "color": "#b7743f", "accent": "#e3b07a",
+			"description": "도토리 모자를 쓴 꼬마 다람쥐. 나무 냄새를 좋아한다."
+		},
+		{
+			"id": "mongdol", "name": "몽돌", "elements": ["stone"], "power": 1.0,
+			"obtain": "base", "adopt_cost": { "berry": 15 },
+			"look": "turtle", "color": "#9db58a", "accent": "#8d8a84",
+			"description": "등껍질이 동글동글한 돌로 된 거북. 느리지만 꾸준하다."
+		},
+		{
+			"id": "pongdang", "name": "퐁당", "elements": ["water"], "power": 1.0,
+			"obtain": "base", "adopt_cost": { "berry": 15 },
+			"look": "frog", "color": "#6ec6f0", "accent": "#d6f1ff",
+			"description": "물방울 모양 개구리. 밭에 물 주는 게 특기."
+		},
+		{
+			"id": "haerong", "name": "해롱", "elements": ["sun"], "power": 1.0,
+			"obtain": "base", "adopt_cost": { "berry": 15 },
+			"look": "chick", "color": "#ffd84d", "accent": "#ff9f1c",
+			"description": "해바라기 꽃잎을 두른 병아리. 햇볕을 받으면 기운이 난다."
+		},
+		{
+			"id": "ikkigom", "name": "이끼곰", "elements": ["forest", "water"], "power": 1.2,
+			"obtain": "combine",
+			"look": "bear", "color": "#8b6b4a", "accent": "#6fae4a",
+			"description": "등에 이끼가 자란 아기곰. 숲과 밭 어디서든 잘 일한다."
+		},
+		{
+			"id": "bandi", "name": "반디", "elements": ["stone", "sun"], "power": 1.2,
+			"obtain": "combine",
+			"look": "mole", "color": "#5b5470", "accent": "#ffe066",
+			"description": "이마가 반짝이는 두더지. 어두운 광산도 환하게 비춘다."
+		},
+		{
+			"id": "beodi", "name": "버디", "elements": ["forest", "stone"], "power": 1.2,
+			"obtain": "combine",
+			"look": "beaver", "color": "#9a6a3c", "accent": "#c98f55",
+			"description": "통나무 꼬리를 가진 비버. 나무도 돌도 척척 다룬다."
+		},
+		{
+			"id": "rumi", "name": "루미", "elements": ["forest", "stone", "water", "sun"], "power": 1.5,
+			"obtain": "combine",
+			"look": "fox", "color": "#fff1e0", "accent": "#ff7b7b",
+			"description": "무지개빛 꼬리의 여우. 어느 작업장에서나 최고의 일꾼."
+		}
+	]
+}

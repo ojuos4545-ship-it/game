@@ -1,11 +1,13 @@
 extends Node
 ## 화면 캡처 도구 (Claude Code가 결과 화면을 확인할 때 사용).
-## 사용법: tools/screenshot.sh [저장경로.png] [대기프레임수] [--press=버튼이름 ...]
+## 사용법: tools/screenshot.sh [저장경로.png] [대기프레임수] [--press=버튼이름 ...] [--scene=res://다른화면.tscn] [--give=자원:수량]
 ## 메인 화면을 띄우고 (지정한 버튼을 누른 뒤) 잠시 기다려 PNG로 저장하고 종료한다.
 
 var _out_path := "user://screenshot.png"
 var _wait_frames := 60
 var _presses: Array[String] = []
+var _scene_path := ""
+var _gives: Array[String] = []
 
 
 func _ready() -> void:
@@ -14,12 +16,21 @@ func _ready() -> void:
 			_out_path = arg.trim_prefix("--out=")
 		elif arg.begins_with("--frames="):
 			_wait_frames = int(arg.trim_prefix("--frames="))
+		elif arg.begins_with("--give="):
+			_gives.append(arg.trim_prefix("--give="))
+		elif arg.begins_with("--scene="):
+			_scene_path = arg.trim_prefix("--scene=")
 		elif arg.begins_with("--press="):
 			_presses.append(arg.trim_prefix("--press="))
 	var main_path: String = ProjectSettings.get_setting("application/run/main_scene")
+	if not _scene_path.is_empty():
+		main_path = _scene_path
 	var main: Node = load(main_path).instantiate()
 	add_child(main)
 	await get_tree().process_frame
+	for g in _gives:  # 개발용: --give=berry:30 (자원 지급)
+		var kv := g.split(":")
+		GameState.add_resource(kv[0], int(kv[1]))
 	for button_name in _presses:
 		var button: Node = main.find_child(button_name, true, false)
 		if button is BaseButton:

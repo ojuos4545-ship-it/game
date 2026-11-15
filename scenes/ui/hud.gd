@@ -1,9 +1,14 @@
 extends Control
-## 화면 UI: 상단 자원 표시줄 + 하단 메뉴 버튼 + 메뉴 창(펫·조합·도감).
+## 화면 UI: 상단 자원 표시줄 + 하단 메뉴 버튼 + 메뉴 창(펫·조합·도감) + 알림 메시지.
 ## 자원 숫자는 GameState 의 신호를 듣고 자동으로 바뀐다.
+## 다른 화면에서 알림을 띄울 때: get_tree().call_group("hud", "show_toast", "메시지")
+
+const PetsView := preload("res://scenes/ui/pets_view.gd")
+const DexView := preload("res://scenes/ui/dex_view.gd")
 
 ## 자원 id -> 수량 표시 Label
 var _amount_labels: Dictionary = {}
+var _toast_tween: Tween
 ## 창 이름 -> 창
 @onready var windows: Dictionary = {
 	"pets": %PetsWindow,
@@ -18,7 +23,12 @@ var _amount_labels: Dictionary = {}
 
 
 func _ready() -> void:
+	add_to_group("hud")
 	_build_resource_bar()
+	windows.pets.set_view(PetsView.new())
+	windows.dex.set_view(DexView.new())
+	GameState.pet_discovered.connect(_on_pet_discovered)
+	%Toast.visible = false
 	GameState.resource_changed.connect(_on_resource_changed)
 	for key in windows:
 		_buttons[key].pressed.connect(toggle_window.bind(key))
@@ -50,6 +60,23 @@ func close_all_windows() -> void:
 
 func is_any_window_open() -> bool:
 	return %Dim.visible
+
+
+## 화면 위쪽에 잠깐 알림 메시지를 띄운다
+func show_toast(text: String) -> void:
+	%ToastLabel.text = text
+	%Toast.visible = true
+	%Toast.modulate.a = 1.0
+	if _toast_tween:
+		_toast_tween.kill()
+	_toast_tween = create_tween()
+	_toast_tween.tween_interval(1.8)
+	_toast_tween.tween_property(%Toast, "modulate:a", 0.0, 0.4)
+	_toast_tween.tween_callback(func(): %Toast.visible = false)
+
+
+func get_toast_text() -> String:
+	return %ToastLabel.text if %Toast.visible else ""
 
 
 func get_amount_text(resource_id: String) -> String:
@@ -94,6 +121,10 @@ func _build_resource_bar() -> void:
 func _on_resource_changed(id: String, amount: int) -> void:
 	if _amount_labels.has(id):
 		_amount_labels[id].text = str(amount)
+
+
+func _on_pet_discovered(species: String) -> void:
+	show_toast("새로운 펫 발견! %s (도감에 등록됨)" % DataDB.get_pet(species).name)
 
 
 func _on_dim_input(event: InputEvent) -> void:
