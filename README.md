@@ -10,6 +10,13 @@
 - 첫 로딩에 10~20초 걸릴 수 있습니다 (게임 엔진 약 40MB).
 - 크롬·엣지 최신 버전 권장.
 
+## Windows 실행 파일
+
+👉 **https://ojuos4545-ship-it.github.io/game/LittleHaven-windows.zip** (약 40MB)
+
+- 압축을 풀고 `LittleHaven.exe`를 실행합니다. 설치가 필요 없습니다.
+- 처음 실행 시 "Windows의 PC 보호" 파란 창이 뜨면 **추가 정보 → 실행**을 누릅니다 (서명되지 않은 개인 제작 프로그램이라 뜨는 정상 경고).
+
 ## 실행 방법 (Godot로 직접 열기)
 
 1. **Godot 4.7.2 (Standard 버전)** 설치 — https://godotengine.org/download
@@ -72,7 +79,11 @@ tools/screenshot.sh build/screen.png
 ```
 
 ```bash
-tools/export_web.sh && tools/deploy_web.sh
+tools/export_web.sh && tools/export_windows.sh && tools/deploy_web.sh
+```
+
+```bash
+godot --headless --path . res://tools/balance_sim.tscn
 ```
 
 ## 라이선스 / 에셋 출처
