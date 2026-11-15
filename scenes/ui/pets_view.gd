@@ -28,7 +28,7 @@ func _ready() -> void:
 	add_child(_adopt_row)
 
 	GameState.pets_changed.connect(refresh)
-	GameState.resource_changed.connect(func(_id, _n): _refresh_adopt())
+	GameState.resource_changed.connect(func(_id, _n): _update_adopt_state())
 	refresh()
 
 
@@ -76,6 +76,17 @@ func _refresh_adopt() -> void:
 		b.tooltip_text = AdoptionSystem.check(id) if b.disabled else "%s 한 마리를 입양합니다" % info.name
 		b.pressed.connect(_on_adopt.bind(id))
 		_adopt_row.add_child(b)
+
+
+## 자원이 바뀔 때: 버튼은 그대로 두고 누를 수 있는지만 바꾼다 (누르는 도중 버튼이 사라지지 않게)
+func _update_adopt_state() -> void:
+	if not _adopt_row:
+		return
+	for b in _adopt_row.get_children():
+		var id: String = b.name.trim_prefix("Adopt_")
+		var reason := AdoptionSystem.check(id)
+		b.disabled = not reason.is_empty()
+		b.tooltip_text = reason if b.disabled else "%s 한 마리를 입양합니다" % DataDB.get_pet(id).name
 
 
 func _on_adopt(species: String) -> void:

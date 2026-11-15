@@ -67,7 +67,7 @@ func _ready() -> void:
 	add_child(_picker)
 
 	GameState.pets_changed.connect(refresh)
-	GameState.resource_changed.connect(func(_id, _n): refresh())
+	GameState.resource_changed.connect(func(_id, _n): _refresh_preview())
 	visibility_changed.connect(func(): _last_result = "")
 	refresh()
 

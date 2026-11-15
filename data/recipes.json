@@ -1,8 +1,53 @@
 {
 	"recipes": [
-		{ "id": "r_ikkigom", "parents": ["doto", "pongdang"], "result": "ikkigom", "cost": { "wood": 10, "berry": 10 } },
-		{ "id": "r_bandi", "parents": ["mongdol", "haerong"], "result": "bandi", "cost": { "ore": 10, "berry": 10 } },
-		{ "id": "r_beodi", "parents": ["doto", "mongdol"], "result": "beodi", "cost": { "wood": 15, "ore": 15 } },
-		{ "id": "r_rumi", "parents": ["ikkigom", "bandi"], "result": "rumi", "cost": { "wood": 30, "ore": 30, "berry": 30 } }
+		{
+			"id": "r_ikkigom",
+			"parents": [
+				"doto",
+				"pongdang"
+			],
+			"result": "ikkigom",
+			"cost": {
+				"wood": 80,
+				"berry": 80
+			}
+		},
+		{
+			"id": "r_bandi",
+			"parents": [
+				"mongdol",
+				"haerong"
+			],
+			"result": "bandi",
+			"cost": {
+				"ore": 80,
+				"berry": 80
+			}
+		},
+		{
+			"id": "r_beodi",
+			"parents": [
+				"doto",
+				"mongdol"
+			],
+			"result": "beodi",
+			"cost": {
+				"wood": 150,
+				"ore": 150
+			}
+		},
+		{
+			"id": "r_rumi",
+			"parents": [
+				"ikkigom",
+				"bandi"
+			],
+			"result": "rumi",
+			"cost": {
+				"wood": 700,
+				"ore": 700,
+				"berry": 700
+			}
+		}
 	]
 }

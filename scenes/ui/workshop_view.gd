@@ -15,6 +15,8 @@ var _picker: GridContainer
 var _picker_label: Label
 var _upgrade_label: Label
 var _upgrade_button: Button
+## 자리·쉬는 펫 버튼 구성 (같으면 버튼을 새로 만들지 않음)
+var _layout_sig := ""
 
 
 func _ready() -> void:
@@ -82,6 +84,7 @@ func _ready() -> void:
 
 	GameState.workshop_changed.connect(func(id): if id == workshop_id: refresh())
 	GameState.pets_changed.connect(refresh)
+	visibility_changed.connect(func(): _layout_sig = "")
 	GameState.resource_changed.connect(func(_id, _n): _refresh_upgrade())
 
 
@@ -121,8 +124,13 @@ func refresh() -> void:
 	_collect_button.text = "수집하기 (+%d)" % can_take
 	_collect_button.disabled = can_take <= 0
 
-	_refresh_slots()
-	_refresh_picker()
+	var sig := "%s|L%d|" % [workshop_id, WorkshopSystem.level(workshop_id)]
+	for p in GameState.pets:
+		sig += "%d:%s:%d," % [p.uid, p.workshop, p.slot]
+	if sig != _layout_sig:
+		_layout_sig = sig
+		_refresh_slots()
+		_refresh_picker()
 	_refresh_upgrade()
 
 

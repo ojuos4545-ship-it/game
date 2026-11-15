@@ -163,12 +163,12 @@ func _test_stage3_adoption() -> void:
 	check(not AdoptionSystem.check("doto").is_empty(), "열매 0개: 입양 불가")
 	var r := AdoptionSystem.adopt("doto")
 	check(not r.ok and GameState.pets.size() == 4, "입양 실패 시 펫·자원 변화 없음")
-	GameState.add_resource("berry", 20)
+	_give(_adopt_cost("doto"), 5)
 	r = AdoptionSystem.adopt("doto")
 	check(r.ok and r.message == "도토를 입양했어요!", "입양 성공 메시지: " + r.message)
-	check(GameState.get_resource("berry") == 5, "입양 비용 차감 (20 - 15 = 5)")
+	check(GameState.get_resource("berry") == 5, "입양 비용 차감 (%s 내고 열매 5 남음)" % DataDB.cost_text(_adopt_cost("doto")))
 	check(GameState.count_species("doto") == 2 and GameState.pets.size() == 5, "도토 한 마리 추가")
-	GameState.add_resource("berry", 100)
+	GameState.add_resource("berry", 10000)
 	r = AdoptionSystem.adopt("ikkigom")
 	check(not r.ok and GameState.count_species("ikkigom") == 0, "조합 펫은 입양 불가: " + r.message)
 	GameState.new_game()
@@ -207,7 +207,7 @@ func _test_stage3_screen() -> void:
 		check(pets_view._count_label.text == "보유 펫 4마리" and pets_view._grid.get_child_count() == 4, "펫 창: 보유 펫 4마리 카드")
 		var adopt_btn: Button = pets_view.find_child("Adopt_doto", true, false)
 		check(adopt_btn != null and adopt_btn.disabled, "열매 부족 시 입양 버튼 비활성")
-		GameState.add_resource("berry", 15)
+		_give(_adopt_cost("doto"))
 		adopt_btn = pets_view.find_child("Adopt_doto", true, false)
 		check(adopt_btn != null and not adopt_btn.disabled, "열매 충분하면 입양 버튼 활성")
 		adopt_btn.pressed.emit()
@@ -242,11 +242,9 @@ func _test_stage4_combine() -> void:
 	var r := CombineSystem.combine("doto", "pongdang")
 	check(not r.ok and GameState.count_species("ikkigom") == 0, "자원 부족: 조합 안 됨 (" + r.message + ")")
 
-	GameState.add_resource("wood", 50)
-	GameState.add_resource("ore", 50)
-	GameState.add_resource("berry", 50)
+	_give_all(10000)
 	r = CombineSystem.combine("pongdang", "haerong")
-	check(not r.ok and GameState.get_resource("berry") == 50, "조합표에 없는 조합: 자원 그대로 (" + r.message + ")")
+	check(not r.ok and GameState.get_resource("berry") == 10000, "조합표에 없는 조합: 자원 그대로 (" + r.message + ")")
 	r = CombineSystem.combine("ikkigom", "bandi")
 	check(not r.ok, "보유하지 않은 펫으로는 조합 불가")
 	r = CombineSystem.combine("doto", "doto")
@@ -254,7 +252,8 @@ func _test_stage4_combine() -> void:
 
 	r = CombineSystem.combine("doto", "pongdang")
 	check(r.ok and r.result == "ikkigom" and r.new_discovery, "조합 성공: 이끼곰 (" + r.message + ")")
-	check(GameState.get_resource("wood") == 40 and GameState.get_resource("berry") == 40, "조합 비용 차감 (목재 10, 열매 10)")
+	var ik_cost := _cost("doto", "pongdang")
+	check(GameState.get_resource("wood") == 10000 - ik_cost.wood and GameState.get_resource("berry") == 10000 - ik_cost.berry, "조합 비용 차감 (%s)" % DataDB.cost_text(ik_cost))
 	check(GameState.count_species("doto") == 1 and GameState.count_species("pongdang") == 1, "재료 펫은 사라지지 않음")
 	check(GameState.is_discovered("ikkigom"), "도감 등록")
 	r = CombineSystem.combine("doto", "pongdang")
@@ -262,11 +261,11 @@ func _test_stage4_combine() -> void:
 
 	r = CombineSystem.combine("mongdol", "haerong")
 	check(r.ok and r.result == "bandi", "반디 조합")
+	_clear_resources()
+	_give(_cost("ikkigom", "bandi"), -1)
 	r = CombineSystem.combine("ikkigom", "bandi")
-	check(not r.ok, "루미: 자원 부족 시 불가 (30씩 필요)")
-	GameState.add_resource("wood", 30)
-	GameState.add_resource("ore", 30)
-	GameState.add_resource("berry", 30)
+	check(not r.ok, "루미: 자원이 1씩 모자라면 불가 (%s 필요)" % DataDB.cost_text(_cost("ikkigom", "bandi")))
+	_give_all(10000)
 	r = CombineSystem.combine("bandi", "ikkigom")
 	check(r.ok and r.result == "rumi", "조합으로 얻은 펫끼리 2차 조합 → 루미")
 	r = CombineSystem.combine("doto", "mongdol")
@@ -292,8 +291,7 @@ func _test_stage4_screen() -> void:
 		check(view.selected == ["doto", "pongdang"], "펫 누르면 재료 칸에 들어감")
 		check(view._result_box.find_child("*", true, false) != null and _texts(view._result_box).has("???"), "결과 미리보기: 미발견 펫은 ???")
 		check(go.disabled and view._info_label.text.contains("부족"), "자원 부족 안내 + 버튼 비활성")
-		GameState.add_resource("wood", 10)
-		GameState.add_resource("berry", 10)
+		_give(_cost("doto", "pongdang"))
 		check(not go.disabled, "자원 충분하면 조합 버튼 활성")
 		go.pressed.emit()
 		check(_texts(view._result_box).has("이끼곰"), "조합 후 결과 칸에 이끼곰 표시")
@@ -393,16 +391,13 @@ func _test_stage5_upgrade() -> void:
 	print("[5단계] 업그레이드")
 	GameState.new_game()
 	check(not WorkshopSystem.check_upgrade("lumber").is_empty(), "자원 부족 시 업그레이드 불가")
-	GameState.add_resource("ore", 20)
-	GameState.add_resource("berry", 20)
+	_give(_up_cost("lumber"))
 	var r := WorkshopSystem.upgrade("lumber")
 	check(r.ok and WorkshopSystem.level("lumber") == 2, "업그레이드 Lv2: " + r.message)
-	check(GameState.get_resource("ore") == 0 and GameState.get_resource("berry") == 0, "업그레이드 비용 차감")
+	check(_all_zero(), "업그레이드 비용 차감 (딱 맞게 주고 → 0)")
 	check(WorkshopSystem.slot_count("lumber") == 3 and WorkshopSystem.capacity("lumber") == 60, "Lv2: 자리 3, 창고 60")
 	check(WorkshopSystem.output("doto", "lumber") == 3.0, "Lv2: 생산 ×1.5 (도토 2 → 3)")
-	GameState.add_resource("wood", 100)
-	GameState.add_resource("ore", 100)
-	GameState.add_resource("berry", 100)
+	_give(_up_cost("lumber"))
 	WorkshopSystem.upgrade("lumber")
 	check(WorkshopSystem.level("lumber") == 3 and WorkshopSystem.slot_count("lumber") == 4, "Lv3: 자리 4")
 	r = WorkshopSystem.upgrade("lumber")
@@ -436,8 +431,7 @@ func _test_stage5_screen() -> void:
 	check(GameState.get_pet(_uid_of("doto")).workshop == "", "쉬게 하기 버튼")
 	var up: Button = view.find_child("UpgradeButton", true, false)
 	check(up.disabled, "자원 부족 시 업그레이드 버튼 비활성")
-	GameState.add_resource("ore", 20)
-	GameState.add_resource("berry", 20)
+	_give(_up_cost("lumber"))
 	check(not up.disabled, "자원 충분하면 업그레이드 버튼 활성")
 	up.pressed.emit()
 	check(WorkshopSystem.level("lumber") == 2 and view._slots_row.get_child(2).modulate.a == 1.0, "업그레이드 → 세 번째 자리 열림")
@@ -445,6 +439,22 @@ func _test_stage5_screen() -> void:
 	DataDB.balance.auto_collect = true
 	view.refresh()
 	check(not view._storage_row.visible and view._info_label.text.contains("자동 수집"), "자동 수집 방식: 창고·수집 버튼 숨김")
+	var first_slot: Node = view._slots_row.get_child(0)
+	var first_pick: Node = view._picker.get_child(0) if view._picker.get_child_count() > 0 else null
+	WorkshopSystem.assign(_uid_of("doto"), "lumber")
+	first_slot = view._slots_row.get_child(0)
+	first_pick = view._picker.get_child(0)
+	for i in 3:
+		WorkshopSystem.tick("lumber")
+	check(view._slots_row.get_child(0) == first_slot and view._picker.get_child(0) == first_pick, "생산될 때마다 버튼을 새로 만들지 않음 (클릭이 끊기지 않게)")
+	var pets_view: Node = hud.find_child("PetsView", true, false)
+	var adopt_btn: Node = pets_view.find_child("Adopt_doto", true, false)
+	_give(_adopt_cost("doto"))
+	check(pets_view.find_child("Adopt_doto", true, false) == adopt_btn and not adopt_btn.disabled, "자원이 바뀌어도 입양 버튼은 그대로, 누를 수 있게만 바뀜")
+	var combine_view: Node = hud.find_child("CombineView", true, false)
+	var pick_btn: Node = combine_view.find_child("Pick_doto", true, false)
+	GameState.add_resource("wood", 1)
+	check(combine_view.find_child("Pick_doto", true, false) == pick_btn, "자원이 바뀌어도 조합 창 펫 버튼은 그대로")
 	main.queue_free()
 	GameState.new_game()
 
@@ -484,8 +494,7 @@ func _test_stage5_world() -> void:
 		WorkshopSystem.tick("lumber")
 	check(plot.get_status_text().contains("가득"), "창고 가득 표시: " + plot.get_status_text())
 
-	GameState.add_resource("ore", 20)
-	GameState.add_resource("berry", 20)
+	_give(_up_cost("lumber"))
 	WorkshopSystem.upgrade("lumber")
 	check(plot.targets.size() == 3, "업그레이드 → 나무(작업 자리) 3그루")
 
@@ -534,7 +543,7 @@ func _test_full_cycle() -> void:
 	var ok := true
 	for g in goals:
 		var guard := 0
-		while not CombineSystem.check(g[0], g[1]).ok and guard < 500:
+		while not CombineSystem.check(g[0], g[1]).ok and guard < 5000:
 			run.call(1)
 			guard += 1
 		var r := CombineSystem.combine(g[0], g[1])
@@ -542,7 +551,7 @@ func _test_full_cycle() -> void:
 			ok = false
 			print("    조합 실패: ", g, " ", r.message)
 	var minutes: float = ticks[0] * DataDB.balance.production_interval / 60.0
-	check(ok and GameState.discovered.size() == 8, "도감 8종 완성 (생산 %d회, 약 %.1f분)" % [ticks[0], minutes])
+	check(ok and GameState.discovered.size() == 8, "도감 8종 완성 — 기본 펫 4마리만 일할 때 (생산 %d회, 약 %.1f분)" % [ticks[0], minutes])
 	GameState.new_game()
 
 
@@ -559,9 +568,7 @@ func _test_stage6_save() -> void:
 	SaveManager.enabled = true
 
 	GameState.new_game()
-	GameState.add_resource("wood", 40)
-	GameState.add_resource("ore", 40)
-	GameState.add_resource("berry", 60)
+	_give_all(10000)
 	CombineSystem.combine("doto", "pongdang")
 	AdoptionSystem.adopt("haerong")
 	WorkshopSystem.upgrade("mine")
@@ -665,3 +672,38 @@ func _test_stage6_screen() -> void:
 	check(not hud.is_any_window_open(), "계속하기 → 창 닫힘")
 	main.queue_free()
 	GameState.new_game()
+
+
+# ---------- 점검 도우미: 데이터의 비용을 그대로 읽어 쓴다 (밸런스 수치가 바뀌어도 점검이 맞도록) ----------
+func _give(cost: Dictionary, extra := 0) -> void:
+	for id in cost:
+		GameState.add_resource(id, int(cost[id]) + extra)
+
+
+func _give_all(amount: int) -> void:
+	for id in DataDB.resource_ids:
+		GameState.add_resource(id, amount)
+
+
+func _clear_resources() -> void:
+	for id in DataDB.resource_ids:
+		GameState.add_resource(id, -GameState.get_resource(id))
+
+
+func _all_zero() -> bool:
+	for id in DataDB.resource_ids:
+		if GameState.get_resource(id) != 0:
+			return false
+	return true
+
+
+func _cost(a: String, b: String) -> Dictionary:
+	return DataDB.find_recipe(a, b).cost
+
+
+func _adopt_cost(species: String) -> Dictionary:
+	return DataDB.get_pet(species).adopt_cost
+
+
+func _up_cost(ws: String) -> Dictionary:
+	return WorkshopSystem.next_level_info(ws).upgrade_cost
