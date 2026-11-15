@@ -614,6 +614,67 @@ const clockScript = (off) => `(() => { if (!window.__realNow) window.__realNow =
     return { walkHop: range(walk, 'offsetY'), walkTilt: range(walk, 'tilt'), walkUp: walk.every(p => p.offsetY <= 0), idleTilt: range(idle, 'tilt'), restHop: range(rest, 'offsetY'), restTilt: range(rest, 'tilt'), restBreath: range(rest, 'squash') };
   });
   check('6-6 걷는 펫은 통통 튀고 기우뚱, 서 있거나 쉬는 펫은 기울지 않음(쉬는 펫은 숨쉬기만)', motion.walkHop > 2 && motion.walkTilt > .1 && motion.walkUp && motion.idleTilt === 0 && motion.restHop === 0 && motion.restTilt === 0 && motion.restBreath > .03, JSON.stringify(motion));
+  // ---------- 6-9. 앞뒤 가림·길찾기·충돌 (그리기용 움직임) ----------
+  const depth = await page.evaluate(() => {
+    const backup = JSON.stringify({ pets: game.pets, buildings: game.buildings }); const out = {};
+    try {
+      const at = (type, col, row) => ({ id: uid('building'), type, ...cellCenter(col, row), level: 1 });
+      game.buildings = [at('plaza', 10, 6), at('nursery', 16, 3), at('farm', 4, 9), at('lumber', 5, 3), at('quarry', 15, 9), at('smelter', 19, 7)];
+      petNav.clear();
+      const W = canvas.width, H = canvas.height;
+      const bases = () => game.buildings.map(b => ({ x0: b.x * W - BUILDING_BASE.halfWidth, x1: b.x * W + BUILDING_BASE.halfWidth, y0: b.y * H + 40 - BUILDING_BASE.height, y1: b.y * H + 40 }));
+      const inBase = pet => bases().some(q => pet.x * W > q.x0 && pet.x * W < q.x1 && petFootY(pet) > q.y0 && petFootY(pet) < q.y1);
+      const freePet = (id, x, y, tx, ty) => { const pet = makePet(id, []); Object.assign(pet, { x, y, targetX: tx, targetY: ty, idleTimer: 999, energy: pet.maxEnergy, workBuildingId: null, resting: false }); return pet; };
+      // (1) 건물을 가로지르는 목적지: 밑면을 한 번도 밟지 않고 도착
+      const lumber = game.buildings.find(b => b.type === 'lumber'), plaza = game.buildings.find(b => b.type === 'plaza');
+      const crossers = [freePet('sproutbun', lumber.x - .12, lumber.y + .02, lumber.x + .12, lumber.y + .02), freePet('pebblelamb', plaza.x, plaza.y - .14, plaza.x, plaza.y + .2)];
+      game.pets = crossers; let entered = 0;
+      for (let i = 0; i < 600; i++) { movePets(50); crossers.forEach(p => { if (inBase(p)) entered++; }); }
+      out.entered = entered; out.arrived = crossers.map(p => Math.hypot(p.x - p.targetX, p.y - p.targetY) < .01);
+      // (2) 경로가 직선이 아님(건물을 돌아감)
+      const path = findPath(lumber.x * W - 115, lumber.y * H + 28, lumber.x * W + 115, lumber.y * H + 28);
+      out.detour = Array.isArray(path) && path.length >= 2;
+      // (3) 자유 목적지는 건물 밑면·나무 밑동이 아님
+      let badTargets = 0; for (let i = 0; i < 300; i++) { const t = randomWalkTarget(); if (footBlocked(t.x * W, t.y * H + PET_FOOT_OFFSET)) badTargets++; }
+      out.badTargets = badTargets;
+      // (4) 앞뒤 정렬: 발이 건물 기준선보다 위(뒤)면 건물보다 먼저, 아래(앞)면 나중에 그림. 그림자는 모든 그림보다 먼저
+      const behind = freePet('dewotter', lumber.x, (buildingDepthY(lumber) - 30 - PET_FOOT_OFFSET) / H, 0, 0), front = freePet('breezefox', lumber.x + .02, (buildingDepthY(lumber) + 30 - PET_FOOT_OFFSET) / H, 0, 0);
+      [behind, front].forEach(p => { p.targetX = p.x; p.targetY = p.y; });
+      game.pets = [behind, front];
+      const order = []; const orig = { drawPet: window.drawPet, drawBuilding: window.drawBuilding, drawPetShadow: window.drawPetShadow };
+      window.drawPet = pet => { order.push('pet:' + pet.speciesId); return orig.drawPet(pet); };
+      window.drawBuilding = b => { order.push('b:' + b.type); return orig.drawBuilding(b); };
+      window.drawPetShadow = pet => { order.push('shadow'); return orig.drawPetShadow(pet); };
+      try { drawVillage(); } finally { Object.assign(window, orig); }
+      const i = s => order.indexOf(s);
+      out.order = { behindFirst: i('pet:dewotter') < i('b:lumber'), frontAfter: i('pet:breezefox') > i('b:lumber'), shadowsFirst: order.lastIndexOf('shadow') < Math.min(...order.filter(s => s !== 'shadow').map(s => order.indexOf(s))) };
+      out.hiddenFlag = petHiddenBy(behind, lumber) && !petHiddenBy(front, lumber);
+      // (5) 대각선 속도 = 가로 속도
+      const open = nearestOpenFoot(W * .5, H * .9);
+      const a = freePet('sparkchick', open.x / W - .1, (open.y - PET_FOOT_OFFSET) / H - .1, 0, 0), b2 = freePet('embergecko', open.x / W - .1, (open.y - PET_FOOT_OFFSET) / H + .02, 0, 0);
+      a.targetX = a.x + .3; a.targetY = a.y + .3; b2.targetX = b2.x + .3; b2.targetY = b2.y;
+      game.pets = [a]; const ax = a.x * W, ay = a.y * H; movePets(50); const diag = Math.hypot(a.x * W - ax, a.y * H - ay);
+      game.pets = [b2]; const bx = b2.x * W, by = b2.y * H; movePets(50); const straight = Math.hypot(b2.x * W - bx, b2.y * H - by);
+      out.speed = { diag, straight };
+      // (6) 같은 자리에 선 두 펫은 서로 비켜섬
+      const s1 = freePet('sproutbun', open.x / W, (open.y - PET_FOOT_OFFSET) / H, 0, 0), s2 = freePet('pebblelamb', open.x / W, (open.y - PET_FOOT_OFFSET) / H, 0, 0);
+      [s1, s2].forEach(p => { p.targetX = p.x; p.targetY = p.y; });
+      game.pets = [s1, s2]; for (let k = 0; k < 40; k++) movePets(50);
+      out.apart = Math.hypot((s1.x - s2.x) * W, (petFootY(s1) - petFootY(s2)) * 1.6);
+      // (7) 건물을 펫 위에 지어도 펫이 빠져나옴
+      const trapped = freePet('dewotter', lumber.x, (lumber.y * H + 40 - 15 - PET_FOOT_OFFSET) / H, 0, 0); trapped.targetX = lumber.x; trapped.targetY = lumber.y + .2;
+      game.pets = [trapped]; for (let k = 0; k < 200; k++) movePets(50);
+      out.escaped = !inBase(trapped);
+      out.savedKeys = Object.keys(crossers[0]).sort().join() === Object.keys(makePet('sproutbun', [])).sort().join();
+    } finally { const b = JSON.parse(backup); game.pets = b.pets; game.buildings = b.buildings; petNav.clear(); }
+    return out;
+  });
+  check('6-9 건물을 가로지르는 목적지: 밑면을 밟지 않고 돌아서 도착', depth.entered === 0 && depth.arrived.every(Boolean) && depth.detour, JSON.stringify({ entered: depth.entered, arrived: depth.arrived, detour: depth.detour }));
+  check('6-9 자유 생활 목적지는 건물 밑면·나무 밑동이 아님(300회)', depth.badTargets === 0, String(depth.badTargets));
+  check('6-9 발 기준 앞뒤 정렬: 건물 뒤 펫은 먼저(가려짐), 앞 펫은 나중에, 그림자는 맨 먼저', depth.order.behindFirst && depth.order.frontAfter && depth.order.shadowsFirst && depth.hiddenFlag, JSON.stringify(depth.order));
+  check('6-9 대각선 이동 속도가 가로 이동과 같음', Math.abs(depth.speed.diag - depth.speed.straight) < .01 && depth.speed.straight > 0, JSON.stringify(depth.speed));
+  check('6-9 같은 자리에 선 펫 두 마리는 서로 비켜섬', depth.apart >= 20, String(depth.apart));
+  check('6-9 건물을 펫 위에 지어도 펫이 빠져나옴, 저장되는 펫 항목은 그대로', depth.escaped && depth.savedKeys, JSON.stringify({ escaped: depth.escaped, savedKeys: depth.savedKeys }));
   const rare = await page.evaluate(() => {
     const pet = game.pets[0]; const saved = pet.appearance; const base = readySprite(`pet:${pet.speciesId}`);
     pet.appearance = null; const plain = petSpriteFor(pet);

@@ -1398,9 +1398,11 @@ function decorPlacements() {
   }
   return list;
 }
+function drawDecorShadow(item) {
+  ctx.fillStyle = 'rgba(10,36,16,.3)'; ctx.beginPath(); ctx.ellipse(item.x, item.y - 2, item.size * .34, item.size * .12, 0, 0, Math.PI * 2); ctx.fill();
+}
 function drawDecor(item) {
   const image = readySprite(`decor:${item.kind}`);
-  ctx.fillStyle = 'rgba(10,36,16,.3)'; ctx.beginPath(); ctx.ellipse(item.x, item.y - 2, item.size * .34, item.size * .12, 0, 0, Math.PI * 2); ctx.fill();
   if (image) {
     const w = image.naturalWidth * 2, h = image.naturalHeight * 2;
     ctx.save(); ctx.imageSmoothingEnabled = false;
@@ -1417,17 +1419,24 @@ function drawVillage() {
   ctx.clearRect(0, 0, w, h);
   if (!backgroundLayer) backgroundLayer = buildBackground();
   ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(backgroundLayer.canvas, 0, 0, w, h); ctx.restore();
+  // 1) 바닥층: 그림자를 먼저 모두 깐다(그림자가 다른 펫·건물 위에 덮이지 않게).
+  const decor = decorPlacements();
+  decor.forEach(drawDecorShadow); game.buildings.forEach(drawBuildingShadow); game.pets.forEach(drawPetShadow);
+  // 2) 서 있는 것들: 바닥에 닿는 선(발·밑동·건물 밑면)의 y가 작은 것(뒤쪽)부터 그린다.
   const items = [];
-  decorPlacements().forEach(item => items.push({ y: item.y, draw: () => drawDecor(item) }));
-  game.buildings.forEach(building => items.push({ y: building.y * h + 40, draw: () => drawBuilding(building) }));
+  decor.forEach(item => items.push({ y: item.y, draw: () => drawDecor(item) }));
+  game.buildings.forEach(building => items.push({ y: buildingDepthY(building), draw: () => drawBuilding(building) }));
   // 알은 교배장 오른쪽 옆에 놓는다(오른쪽 끝이라 자리가 없으면 왼쪽).
   const nursery = getBuilding('nursery');
   const nx = nursery ? nursery.x * w : w * .5, ny = nursery ? nursery.y * h : h * .5;
   const eggRight = nx + 58 + 22 < w - 8;
   const eggX = eggRight ? nx + 58 : nx - 58 - 22, eggY = ny + 6;
   game.eggs.forEach((egg, index) => { const ex = eggX + (index % 2) * 22, ey = eggY + Math.floor(index / 2) * 22; items.push({ y: ey + 9, draw: () => drawEgg(ex, ey) }); });
-  game.pets.forEach(pet => items.push({ y: pet.y * h + 16, draw: () => drawPet(pet) }));
+  game.pets.forEach(pet => items.push({ y: petFootY(pet), draw: () => drawPet(pet) }));
   items.sort((a, b) => a.y - b.y).forEach(item => item.draw());
+  // 선택한 펫이 건물 뒤에 가려졌으면 흐린 모습을 한 번 더 그려 위치를 알 수 있게 한다.
+  const chosen = game.pets.find(pet => pet.id === selectedPetId);
+  if (chosen && game.buildings.some(b => petHiddenBy(chosen, b))) { ctx.save(); ctx.globalAlpha = .38; drawPet(chosen); ctx.restore(); }
   // 시설 이름표는 맨 마지막에 그려 펫이나 나무에 가리지 않게 한다.
   game.buildings.forEach(drawBuildingLabel);
   if (ui.placing) drawPlacement();
@@ -1473,7 +1482,6 @@ function drawBuilding(building) {
   // building.y는 차지한 칸 묶음의 한가운데다. 그림 기준점 y는 그보다 12px 아래(그림 아래 끝 = 칸 묶음 아래 끝).
   const x = building.x * canvas.width, y = building.y * canvas.height + 12;
   const info = BUILDING_TYPES[building.type];
-  ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,47,14,0,0,Math.PI*2); ctx.fill();
   const buildingImage = readySprite(`building:${building.type}`);
   if (buildingImage) {
     // 픽셀아트가 흐려지지 않도록 정수 좌표에, 부드럽게 보정하지 않고 그린다.
@@ -1493,6 +1501,12 @@ function drawBuilding(building) {
   }
   if(!buildingImage){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(info.icon,x,y-58);}
   if(ui.selectedBuildingId===building.id){ctx.strokeStyle='#fff4a9';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.ellipse(x,y-14,58,50,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+}
+function drawBuildingShadow(building) {
+  const x = building.x * canvas.width, y = building.y * canvas.height + 12;
+  ctx.fillStyle = 'rgba(34,60,38,.25)'; ctx.beginPath(); ctx.ellipse(x,y+24,47,14,0,0,Math.PI*2); ctx.fill();
+  // 밑면에 닿는 짙은 그림자(땅에 붙어 있는 느낌)
+  ctx.fillStyle = 'rgba(16,36,20,.22)'; ctx.beginPath(); ctx.ellipse(x,y+26,38,7,0,0,Math.PI*2); ctx.fill();
 }
 // 시설 이름표: 어두운 바탕 위에 이름과 작업 펫 수를 쓴다.
 function drawBuildingLabel(building) {
@@ -1532,7 +1546,6 @@ function drawPet(pet) {
   const effect=activePetEffect(pet.id);
   const pose=petPose(pet);
   const bob=pose.offsetY;
-  ctx.fillStyle='rgba(10,30,14,.35)';ctx.beginPath();ctx.ellipse(x,y+14,20-Math.min(3,-bob*.4),7,0,0,Math.PI*2);ctx.fill();
   const petImage=petSpriteFor(pet);
   if(petImage){
     // 그림 파일이 있으면 그것으로 그린다(왼쪽으로 갈 때는 좌우를 뒤집는다). 발밑을 기준으로 기울이고 납작하게 만든다.
@@ -1569,12 +1582,137 @@ function drawPet(pet) {
     ctx.restore();
   }
 }
+function drawPetShadow(pet) {
+  const x=pet.x*canvas.width, y=pet.y*canvas.height, bob=petPose(pet).offsetY;
+  ctx.fillStyle='rgba(10,30,14,.35)';ctx.beginPath();ctx.ellipse(x,y+14,20-Math.min(3,-bob*.4),7,0,0,Math.PI*2);ctx.fill();
+}
 function drawEgg(x,y){
   ctx.fillStyle='rgba(44,39,56,.24)';ctx.beginPath();ctx.ellipse(x,y+9,9,4,0,0,Math.PI*2);ctx.fill();
   const image=readySprite('decor:egg');
   if(image){ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(image,Math.round(x)-12,Math.round(y)-14,24,24);ctx.restore();return;}
   ctx.fillStyle='#f8e7c9';ctx.beginPath();ctx.ellipse(x,y,7,9,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c49b82';ctx.lineWidth=1.5;ctx.stroke();
 }
+// ---------- 펫 길찾기·충돌 (그리기용 움직임. 저장하지 않고, 게임 규칙·시간 계산과 무관) ----------
+// 펫의 위치 기준은 "발"이다(마을 그림 좌표 y + PET_FOOT_OFFSET). 앞뒤 정렬과 충돌 모두 발로 판단한다.
+const PET_FOOT_OFFSET = 16;
+const NAV_CELL = 20;                              // 길찾기 칸 크기(화면 px). 960×600 → 48×30칸
+const BUILDING_BASE = { halfWidth: 42, height: 34 }; // 건물 그림 중 땅에 닿은 밑면(지나갈 수 없음). 그 위쪽(지붕·뒷면)은 펫이 뒤로 지나가며 가려진다
+const DECOR_SOLID = { tree: [9, 8], pine: [9, 8], rock: [13, 8], bush: [14, 8] }; // 밑동 반너비·높이. 꽃은 밟고 지나간다
+const PET_SPACING = 26;                           // 펫끼리 이보다 가까우면 서로 비켜선다(발 사이 거리)
+const navState = { key: '', cols: 0, rows: 0, blocked: null };
+const petNav = new Map();                         // 펫 id → { tx, ty, key, points, stuck }
+function petFootY(pet) { return pet.y * canvas.height + PET_FOOT_OFFSET; }
+function buildingBottomY(building) { return building.y * canvas.height + 40; }
+// 건물의 앞뒤 정렬 기준선 = 밑면의 가운데. 이 선보다 발이 위(뒤)면 건물에 가려지고, 아래(앞)면 건물 앞에 보인다.
+function buildingDepthY(building) { return buildingBottomY(building) - BUILDING_BASE.height / 2; }
+function petHiddenBy(pet, building) {
+  const fx = pet.x * canvas.width, fy = petFootY(pet), bx = building.x * canvas.width;
+  return Math.abs(fx - bx) < 50 && fy < buildingDepthY(building) && fy > buildingBottomY(building) - 96;
+}
+function solidRects() {
+  const rects = game.buildings.map(b => { const bx = b.x * canvas.width, bottom = buildingBottomY(b); return { x0: bx - BUILDING_BASE.halfWidth, x1: bx + BUILDING_BASE.halfWidth, y0: bottom - BUILDING_BASE.height, y1: bottom }; });
+  decorPlacements().forEach(d => { const s = DECOR_SOLID[d.kind]; if (s) rects.push({ x0: d.x - s[0], x1: d.x + s[0], y0: d.y - s[1], y1: d.y + 2 }); });
+  return rects;
+}
+// 건물 배치가 바뀌었을 때만 길찾기 지도를 새로 만든다.
+function navGrid() {
+  const key = game.buildings.map(b => `${b.type}:${b.x.toFixed(4)},${b.y.toFixed(4)}`).join('|');
+  if (navState.key === key && navState.blocked) return navState;
+  const cols = Math.ceil(canvas.width / NAV_CELL), rows = Math.ceil(canvas.height / NAV_CELL);
+  const blocked = new Uint8Array(cols * rows), pad = 8; // 발 둘레 여유
+  const rects = solidRects();
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = (c + .5) * NAV_CELL, y = (r + .5) * NAV_CELL;
+    const outside = x < 40 || x > canvas.width - 40 || y < 96 || y > canvas.height - 24; // 마을 가장자리(펫 그림이 잘리지 않는 범위)
+    if (outside || rects.some(q => x > q.x0 - pad && x < q.x1 + pad && y > q.y0 - pad && y < q.y1 + pad)) blocked[r * cols + c] = 1;
+  }
+  Object.assign(navState, { key, cols, rows, blocked });
+  petNav.clear();
+  return navState;
+}
+function navCellOf(fx, fy) { const g = navGrid(); return { c: clamp(Math.floor(fx / NAV_CELL), 0, g.cols - 1), r: clamp(Math.floor(fy / NAV_CELL), 0, g.rows - 1) }; }
+function footBlocked(fx, fy) { const g = navGrid(), { c, r } = navCellOf(fx, fy); return g.blocked[r * g.cols + c] === 1; }
+function navCellCenter(c, r) { return { x: (c + .5) * NAV_CELL, y: (r + .5) * NAV_CELL }; }
+// 막힌 곳이면 가장 가까운 빈 칸의 가운데를 돌려준다.
+function nearestOpenFoot(fx, fy) {
+  if (!footBlocked(fx, fy)) return { x: fx, y: fy };
+  const g = navGrid(), start = navCellOf(fx, fy);
+  for (let radius = 1; radius < Math.max(g.cols, g.rows); radius++) {
+    let best = null, bestD = Infinity;
+    for (let r = start.r - radius; r <= start.r + radius; r++) for (let c = start.c - radius; c <= start.c + radius; c++) {
+      if (c < 0 || r < 0 || c >= g.cols || r >= g.rows || g.blocked[r * g.cols + c]) continue;
+      const p = navCellCenter(c, r), d = Math.hypot(p.x - fx, p.y - fy);
+      if (d < bestD) { best = p; bestD = d; }
+    }
+    if (best) return best;
+  }
+  return { x: fx, y: fy };
+}
+// 두 점 사이를 막힌 칸 없이 곧게 갈 수 있는가(발 너비만큼 양옆도 확인).
+function lineIsClear(ax, ay, bx, by) {
+  const dist = Math.hypot(bx - ax, by - ay), steps = Math.max(1, Math.ceil(dist / 5));
+  const nx = dist ? -(by - ay) / dist * 6 : 0, ny = dist ? (bx - ax) / dist * 6 : 0;
+  for (let i = 1; i <= steps; i++) {
+    const x = ax + (bx - ax) * i / steps, y = ay + (by - ay) * i / steps;
+    if (footBlocked(x, y) || footBlocked(x + nx, y + ny) || footBlocked(x - nx, y - ny)) return false;
+  }
+  return true;
+}
+// A* 길찾기(상하좌우 + 대각선, 모서리를 깎아 지나가지 않음). 결과는 꺾이는 점만 남긴 발 좌표 목록.
+function findPath(sx, sy, tx, ty) {
+  if (lineIsClear(sx, sy, tx, ty)) return [{ x: tx, y: ty }];
+  const g = navGrid(), { cols, rows, blocked } = g, s = navCellOf(sx, sy), e = navCellOf(tx, ty);
+  const idx = (c, r) => r * cols + c, startI = idx(s.c, s.r), endI = idx(e.c, e.r);
+  const gScore = new Float32Array(cols * rows).fill(Infinity), from = new Int32Array(cols * rows).fill(-1), closed = new Uint8Array(cols * rows);
+  const open = [startI]; gScore[startI] = 0;
+  const h = i => { const dc = Math.abs(i % cols - e.c), dr = Math.abs(Math.floor(i / cols) - e.r); return Math.max(dc, dr) + (Math.SQRT2 - 1) * Math.min(dc, dr); };
+  const f = new Float32Array(cols * rows).fill(Infinity); f[startI] = h(startI);
+  while (open.length) {
+    let bi = 0; for (let k = 1; k < open.length; k++) if (f[open[k]] < f[open[bi]]) bi = k;
+    const cur = open.splice(bi, 1)[0];
+    if (cur === endI) break;
+    closed[cur] = 1;
+    const cc = cur % cols, cr = Math.floor(cur / cols);
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dc && !dr) continue;
+      const nc = cc + dc, nr = cr + dr;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+      const ni = idx(nc, nr);
+      if (closed[ni] || (blocked[ni] && ni !== endI)) continue;
+      if (dc && dr && (blocked[idx(cc + dc, cr)] || blocked[idx(cc, cr + dr)])) continue; // 모서리 깎기 금지
+      const tentative = gScore[cur] + (dc && dr ? Math.SQRT2 : 1);
+      if (tentative < gScore[ni]) { gScore[ni] = tentative; from[ni] = cur; f[ni] = tentative + h(ni); if (!open.includes(ni)) open.push(ni); }
+    }
+  }
+  if (from[endI] < 0 && endI !== startI) return null;
+  const cells = []; for (let i = endI; i !== startI && i >= 0; i = from[i]) cells.push(i);
+  const raw = cells.reverse().map(i => navCellCenter(i % cols, Math.floor(i / cols)));
+  raw[raw.length - 1] = { x: tx, y: ty };
+  // 꺾이는 점 줄이기: 곧게 갈 수 있는 가장 먼 점으로 건너뛴다.
+  const points = []; let ax = sx, ay = sy, i = 0;
+  while (i < raw.length) {
+    let j = raw.length - 1;
+    while (j > i && !lineIsClear(ax, ay, raw[j].x, raw[j].y)) j--;
+    points.push(raw[j]); ax = raw[j].x; ay = raw[j].y; i = j + 1;
+  }
+  return points;
+}
+// 자유롭게 돌아다닐 때의 새 목적지: 건물·나무 밑동이 아닌 곳.
+function randomWalkTarget() {
+  for (let i = 0; i < 20; i++) {
+    const tx = .12 + Math.random() * .76, ty = .15 + Math.random() * .7;
+    if (!footBlocked(tx * canvas.width, ty * canvas.height + PET_FOOT_OFFSET)) return { x: tx, y: ty };
+  }
+  const p = nearestOpenFoot(canvas.width / 2, canvas.height / 2);
+  return { x: p.x / canvas.width, y: (p.y - PET_FOOT_OFFSET) / canvas.height };
+}
+// 목적지가 막힌 곳이면 가장 가까운 빈 곳으로 옮긴다.
+function settleTarget(pet) {
+  const p = nearestOpenFoot(pet.targetX * canvas.width, pet.targetY * canvas.height + PET_FOOT_OFFSET);
+  pet.targetX = p.x / canvas.width; pet.targetY = (p.y - PET_FOOT_OFFSET) / canvas.height;
+}
+// 발을 (fx, fy)로 옮겨도 되는가: 빈 곳이거나, 이미 막힌 곳에 갇혀 있어 빠져나가는 중일 때.
+function canStepTo(pet, fx, fy) { return !footBlocked(fx, fy) || footBlocked(pet.x * canvas.width, petFootY(pet)); }
 function movePets(delta) {
   const seconds=Math.min(delta/1000,.08);
   game.pets.forEach((pet,index)=>{
@@ -1596,7 +1734,7 @@ function movePets(delta) {
     } else if(effect&&effect.type==='play'){
       // 놀아주는 동안: 쉬지 않고 이리저리 뛰어다닌다.
       pet.idleTimer=null;
-      if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){pet.targetX=.12+Math.random()*.76;pet.targetY=.15+Math.random()*.7;}
+      if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){const t=randomWalkTarget();pet.targetX=t.x;pet.targetY=t.y;}
     } else if(Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.025){
       // 자유 생활: 목적지에 도착하면 잠깐 머문 뒤 새 목적지를 정한다. 활발한 펫은 덜 머문다.
       if(pet.idleTimer==null){
@@ -1604,13 +1742,60 @@ function movePets(delta) {
         pet.idleTimer=idle*(traitHas(pet,'lively') ? CONFIG.livelyIdleMultiplier : 1);
       }
       pet.idleTimer-=seconds;
-      if(pet.idleTimer<=0){pet.idleTimer=null;pet.targetX=.12+Math.random()*.76;pet.targetY=.15+Math.random()*.7;}
+      if(pet.idleTimer<=0){pet.idleTimer=null;const t=randomWalkTarget();pet.targetX=t.x;pet.targetY=t.y;}
     }
-    const dx=pet.targetX-pet.x,dy=pet.targetY-pet.y,dist=Math.hypot(dx,dy);
-    pet.moving=dist>.005;
+    settleTarget(pet);
     const playing=Boolean(effect&&effect.type==='play'&&!workingBuilding);
-    if(pet.moving){const speed=CONFIG.baseMoveSpeed*(traitHas(pet,'nimble') ? CONFIG.nimbleSpeedMultiplier : 1)*(playing ? CONFIG.playSpeedMultiplier : 1)*seconds;pet.x+=dx/dist*Math.min(dist,speed);pet.y+=dy/dist*Math.min(dist,speed);pet.direction=dx>=0?1:-1;}
+    const speed=CONFIG.baseMoveSpeed*(traitHas(pet,'nimble') ? CONFIG.nimbleSpeedMultiplier : 1)*(playing ? CONFIG.playSpeedMultiplier : 1)*seconds;
+    followPath(pet, speed, seconds);
   });
+  keepPetsApart(seconds);
+}
+// 경로를 따라 한 걸음 움직인다. 속도는 방향(대각선 포함)과 관계없이 같다.
+function followPath(pet, speed, seconds) {
+  const W=canvas.width, H=canvas.height, fx=pet.x*W, fy=petFootY(pet), tx=pet.targetX*W, ty=pet.targetY*H+PET_FOOT_OFFSET;
+  if(Math.hypot(tx-fx,ty-fy)<=.005*W){pet.moving=false;return;}
+  let nav=petNav.get(pet.id);
+  if(!nav||nav.key!==navGrid().key||Math.abs(nav.tx-tx)>1||Math.abs(nav.ty-ty)>1||!nav.points.length){
+    nav={tx,ty,key:navGrid().key,points:findPath(fx,fy,tx,ty)||[],stuck:0};petNav.set(pet.id,nav);
+  }
+  if(!nav.points.length){
+    // 갈 수 없는 목적지: 그 자리에 멈추고 다음 목적지를 기다린다.
+    pet.targetX=pet.x;pet.targetY=pet.y;pet.moving=false;petNav.delete(pet.id);return;
+  }
+  const next=nav.points[0], dx=next.x-fx, dy=next.y-fy, dist=Math.hypot(dx,dy), step=Math.min(dist,speed*W);
+  let nx=fx+dx/dist*step, ny=fy+dy/dist*step;
+  if(!canStepTo(pet,nx,ny)){
+    // 벽에 스치면 한 축으로만 미끄러지듯 움직인다. 그래도 막히면 길을 다시 찾는다.
+    if(canStepTo(pet,nx,fy)) ny=fy; else if(canStepTo(pet,fx,ny)) nx=fx; else {nx=fx;ny=fy;}
+  }
+  const moved=Math.hypot(nx-fx,ny-fy);
+  nav.stuck=moved<step*.3?nav.stuck+seconds:0;
+  if(nav.stuck>.6){petNav.delete(pet.id);}
+  pet.x=nx/W;pet.y=(ny-PET_FOOT_OFFSET)/H;pet.moving=moved>0;
+  // 방향은 옆으로 움직일 때만 바꾼다(위아래로 걸을 때 좌우로 깜빡이지 않게).
+  if(Math.abs(nx-fx)>moved*.35) pet.direction=nx>=fx?1:-1;
+  if(dist<=speed*W+.5) nav.points.shift();
+}
+// 펫끼리 발이 너무 가까우면 조금씩 비켜서 완전히 겹치지 않게 한다(건물·나무 안으로는 밀지 않음).
+function keepPetsApart(seconds) {
+  const W=canvas.width, H=canvas.height, pets=game.pets;
+  for(let i=0;i<pets.length;i++) for(let j=i+1;j<pets.length;j++){
+    const a=pets[i], b=pets[j];
+    let dx=(b.x-a.x)*W, dy=(petFootY(b)-petFootY(a))*1.6, d=Math.hypot(dx,dy);
+    if(d>=PET_SPACING) continue;
+    if(d<.01){dx=(i%2?1:-1);dy=0;d=1;}
+    const push=Math.min(PET_SPACING-d,40*seconds)/2, ux=dx/d*push, uy=dy/d*push/1.6;
+    [[a,-1],[b,1]].forEach(([pet,sign])=>{
+      if(isResting(pet)) return; // 자는 펫은 그대로 둔다
+      const fx=pet.x*W+ux*sign, fy=petFootY(pet)+uy*sign;
+      if(!canStepTo(pet,fx,fy)) return;
+      // 목적지에 서 있던 펫은 비켜선 자리를 새 자리로 삼는다(원래 자리로 되돌아가 다시 겹치지 않게).
+      const arrived=Math.hypot(pet.targetX-pet.x,pet.targetY-pet.y)<.02&&!isWorking(pet);
+      pet.x=fx/W;pet.y=(fy-PET_FOOT_OFFSET)/H;
+      if(arrived){pet.targetX=pet.x;pet.targetY=pet.y;}
+    });
+  }
 }
 function animationLoop(timestamp) {
   if(!lastFrame) lastFrame=timestamp;
