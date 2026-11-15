@@ -1,0 +1,11 @@
+# 회사 PC(Windows)와 집 PC 사이 줄바꿈 차이로 인한 충돌 방지
+* text=auto eol=lf
+*.bat text eol=crlf
+# 바이너리 파일
+*.ttf binary
+*.otf binary
+*.png binary
+*.jpg binary
+*.glb binary
+*.ogg binary
+*.wav binary

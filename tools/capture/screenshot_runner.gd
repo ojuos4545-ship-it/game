@@ -1,0 +1,24 @@
+extends Node
+## 화면 캡처 도구 (Claude Code가 결과 화면을 확인할 때 사용).
+## 사용법: tools/screenshot.sh [저장경로.png] [대기프레임수]
+## 메인 화면을 띄우고 잠시 기다린 뒤 PNG로 저장하고 종료한다.
+
+var _out_path := "user://screenshot.png"
+var _wait_frames := 60
+
+
+func _ready() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--out="):
+			_out_path = arg.trim_prefix("--out=")
+		elif arg.begins_with("--frames="):
+			_wait_frames = int(arg.trim_prefix("--frames="))
+	var main_path: String = ProjectSettings.get_setting("application/run/main_scene")
+	add_child(load(main_path).instantiate())
+	for i in _wait_frames:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png(_out_path)
+	print("[Capture] 저장: ", _out_path, " (", error_string(err), ")")
+	get_tree().quit(0 if err == OK else 1)
